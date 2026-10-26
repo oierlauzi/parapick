@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use ParaPick, please cite it as below."
+title: "ParaPick: Structure detection on Tilt-Series for a Tomogram-free Subtomogram Averaging"
+type: software
+license: MIT
+repository-code: "https://github.com/oierlauzi/parapick"
+authors:
+  - family-names: "de Isidro-Gómez"
+    given-names: "Federico P."
+  - family-names: "Lauzirika Zarrabeitia"
+    given-names: "Oier"
+  - family-names: "Jimenez"
+    given-names: "J."
+  - family-names: "Sorzano"
+    given-names: "C. O. S."
+  - family-names: "Carazo"
+    given-names: "J. M."
+  - family-names: "Vilas"
+    given-names: "J. L."
+keywords:
+  - cryo-ET
+  - tomography
+  - particle picking
+  - subtomogram averaging

@@ -1,0 +1,148 @@
+# ParaPick
+
+[![CI](https://github.com/oierlauzi/parapick/actions/workflows/ci.yml/badge.svg)](https://github.com/oierlauzi/parapick/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**Tomogram-free particle localization for cryo-ET.** ParaPick finds the 3D coordinates of
+particles directly from 2D picks made independently on each image of a tilt-series. You can
+pick with any single-particle picker (Topaz, crYOLO, RELION, ...). ParaPick fuses the picks
+from all tilts into a consistent set of 3D positions, with a confidence score for each one.
+No tomogram needs to be reconstructed.
+
+The 3D positions are the centres of a Gaussian mixture. It is fitted with
+expectation-maximisation to all the 2D detections, through the projection geometry of every
+tilt:
+
+- **E-step:** a capped Sinkhorn soft assignment. Each detection is fully explained, and each
+  component takes at most one detection per tilt.
+- **Number of particles:** a sparse Dirichlet prior prunes the deliberately over-complete set
+  of components, so the number of particles is estimated automatically.
+- **Implementation:** JAX, running on CPU or GPU.
+- **Input/output:** RELION 5 STAR files, so the results feed straight into subtomogram
+  averaging.
+
+> F.P. de Isidro-Gómez\*, O.L. Zarrabeitia\*, J. Jimenez, C.O.S. Sorzano, J.M. Carazo,
+> J.L. Vilas. *ParaPick — Structure detection on Tilt-Series for a Tomogram-free Subtomogram
+> Averaging* (in preparation).
+
+## Installation
+
+```bash
+pip install parapick                # CPU
+pip install "parapick[cuda12]"      # NVIDIA GPU (CUDA 12); use [cuda13] for CUDA 13
+```
+
+To install from source, use [uv](https://docs.astral.sh/uv/): run `uv sync` in a clone.
+Python ≥ 3.11 is required.
+
+## Quick start (command line)
+
+```bash
+# 1. Pick each tilt image with your favourite 2D picker, then gather the picks into one
+#    STAR file. Matching them to the tilts of tomograms.star adds tilt-series names.
+parapick convert-picks topaz_picks.txt --tomograms tomograms.star -o picks.star
+
+# 2. Localise the particles in 3D (all tilt-series at once).
+parapick localize --tomograms tomograms.star --picks picks.star -o localize/
+
+# 3. Keep the confident ones (score = fraction of tilts supporting the particle).
+parapick filter localize/particles.star --min-score 0.3 --tomograms tomograms.star \
+    -o localize/particles_selected.star
+```
+
+`localize/` then contains:
+- `particles.star`: RELION 5 `rlnCenteredCoordinate{X,Y,Z}Angst`, with the score in
+  `rlnAutopickFigureOfMerit`.
+- `optimisation_set.star`: ready for RELION 5 subtomogram extraction.
+- `localize_report.json`: per tilt-series diagnostics, such as iterations, number of
+  particles, background fraction and per-tilt pick σ.
+
+Run `parapick --help` and `parapick <command> --help` for all options.
+
+| Command         | Purpose |
+|-----------------|---------|
+| `localize`      | **Main task:** 3D coordinates from 2D picks on the tilt images. |
+| `convert-picks` | Convert picks between formats (Topaz, per-micrograph RELION STARs, ParaPick STAR), resolving them against the tilt-series. |
+| `project`       | Project 3D particles onto every tilt image, e.g. ground truth to train a 2D picker, or QC. |
+| `filter`        | Select particles by score, support or rank. |
+| `evaluate`      | Precision, recall, F1 and RMSE against a reference set. |
+| `simulate`      | Generate a synthetic dataset (geometry, ground truth, noisy picks). |
+| `formats`       | List the available file formats, including installed plug-ins. |
+
+Common options: `--device {auto,cpu,gpu}`, `--x64`, `-v`/`-q`.
+
+## Quick start (Python)
+
+```python
+import parapick as pp
+
+tomograms = pp.read_tomograms("tomograms.star")  # RELION 5 tilt-series geometry
+picks = pp.read_picks("picks.star")  # 2D picks (any registered format)
+
+result = pp.localize(tomograms, picks, config=pp.LocalizeConfig(alpha=0.5))
+particles = result.particles(pp.Selection(min_score=0.3))
+pp.write_particles(particles, "particles.star", tomograms_path="tomograms.star")
+
+for ts in result.results:
+    print(ts.name, ts.fit.n_components, ts.fit.converged, ts.fit.sigmas.mean())
+```
+
+The packages are layered and can be used on their own:
+
+| Package               | Contents |
+|-----------------------|----------|
+| `parapick.tomography` | Format-neutral data model: `TiltSeries` (one affine projection per tilt), `PickTable`, `Particles`, pick-to-tilt matching. |
+| `parapick.gmm`        | The JAX numerics: `EMFitter`, `LocalizeConfig`, initialisers, capped Sinkhorn, EM step. NumPy in, NumPy out. |
+| `parapick.formats`    | Format plug-ins and their registry (RELION 5, RELION coordinates, Topaz). |
+| `parapick.workflows`  | Use cases: `localize`, `project_particles`, `evaluate`, `simulate`, ... |
+| `parapick.cli`        | The thin `argparse` layer. |
+
+## Inputs and conventions
+
+- **Geometry:** RELION 5 `tomograms.star` and the per tilt-series STAR files
+  (`rlnTomoXTilt`, `rlnTomoYTilt`, `rlnTomoZRot`, `rlnTomo{X,Y}ShiftAngst`). ParaPick uses
+  exactly RELION's projection model, including its centring conventions. The tilt-image size
+  is read from the MRC header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
+  labels, or from `--tilt-image-size`.
+- **Picks:** pixel coordinates on the tilt images, as written by single-particle pickers.
+  The canonical ParaPick picks file is a single STAR table with `rlnTomoName`,
+  `rlnMicrographName`, `rlnCoordinateX/Y` and, optionally, `rlnAutopickFigureOfMerit` and
+  `rlnMicrographPixelSize` (for binned picks). Picks are matched to tilts by micrograph
+  path, file name or stem.
+- **Particles:** RELION 5 centred Ångström coordinates. Legacy pixel coordinates can be read
+  with the geometry.
+
+See [`docs/conventions.md`](docs/conventions.md) for the frames, every STAR label (including
+the ParaPick-specific `ppk*` labels), and how to write a format plug-in. See
+[`docs/algorithm.md`](docs/algorithm.md) for how the paper's equations map to the code.
+
+## Reproducing the paper's model
+
+The defaults add three robustness extensions to the paper's EM. They are documented in
+[`docs/algorithm.md`](docs/algorithm.md):
+- a uniform **background** component that absorbs false-positive picks;
+- deterministic **annealing** of the per-tilt σ;
+- a picks-informed (**lifted**) initialisation, plus merging of duplicate components.
+
+On simulated data with realistic false-positive rates, these turn F1 scores of about 0.3–0.7
+into about 0.95–0.99. To run the paper's original model exactly:
+
+```bash
+parapick localize ... --no-background --annealing 0 --merge-distance 0 --init uniform
+```
+
+## Development
+
+```bash
+uv sync                        # create the environment (dev tools included)
+uv run pre-commit install      # ruff + mypy on every commit
+uv run pytest --cov            # tests (CPU, double precision)
+uv run ruff check . && uv run ruff format --check . && uv run mypy
+```
+
+CI runs lint, type-checks, tests on Linux and macOS for Python 3.11–3.13, and builds the
+package. Tagging `vX.Y.Z` publishes to PyPI through trusted publishing.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
