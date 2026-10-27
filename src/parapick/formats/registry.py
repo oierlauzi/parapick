@@ -184,11 +184,23 @@ class FormatRegistry:
 
 
 def _register_builtins(registry: FormatRegistry) -> None:
+    from parapick.formats.cryolo_cbox import CryoloCboxFormat
+    from parapick.formats.cryosparc import CryosparcFormat
+    from parapick.formats.eman_box import EmanBoxFormat
     from parapick.formats.relion5 import Relion5Format
     from parapick.formats.relion_coords import RelionCoordinatesFormat
     from parapick.formats.topaz import TopazFormat
+    from parapick.formats.xmipp_pos import XmippPosFormat
 
-    for fmt in (Relion5Format, RelionCoordinatesFormat, TopazFormat):
+    for fmt in (
+        Relion5Format,
+        RelionCoordinatesFormat,
+        TopazFormat,
+        CryoloCboxFormat,
+        EmanBoxFormat,
+        CryosparcFormat,
+        XmippPosFormat,
+    ):
         registry.register(fmt)
 
 

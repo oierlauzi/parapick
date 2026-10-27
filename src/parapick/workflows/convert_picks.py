@@ -23,6 +23,7 @@ def convert_picks(
     tomograms_format: str = AUTO,
     read_options: TomogramsReadOptions | None = None,
     pixel_size: float | None = None,
+    flip_y: bool = False,
     registry: FormatRegistry | None = None,
 ) -> tuple[PickTable, list[Path]]:
     """Read picks in one format and write them in another.
@@ -30,18 +31,15 @@ def convert_picks(
     When ``tomograms_path`` is given, picks are matched to its tilts: tilt-series names are
     added, tilt identifiers become the canonical micrograph names and unmatched picks are
     dropped. This turns e.g. a Topaz table into a self-describing picks STAR file.
-    ``pixel_size`` records the pixel size of the picked images in the output.
+    ``pixel_size`` records the pixel size of the picked images in the output. ``flip_y``
+    mirrors y on the image height (it needs ``tomograms_path``).
     """
+    if flip_y and tomograms_path is None:
+        raise ValueError("Flipping y needs the tilt-series geometry (--tomograms)")
     registry = registry or default_registry()
     reader = registry.picks_reader(input_format, input_path)
     picks = reader.read_picks(input_path)
     logger.info("Read %d picks from %s (%s)", len(picks), input_path, reader.name)
-    if tomograms_path is not None:
-        tomograms = registry.tomograms_reader(tomograms_format, tomograms_path).read_tomograms(
-            tomograms_path, read_options or TomogramsReadOptions()
-        )
-        picks, report = annotate_picks(picks, tomograms)
-        logger.info("Matched %d picks (%d unmatched)", report.matched, report.unmatched)
     if pixel_size is not None:
         picks = PickTable(
             tilt_ids=picks.tilt_ids,
@@ -50,5 +48,11 @@ def convert_picks(
             scores=picks.scores,
             pixel_size=pixel_size,
         )
+    if tomograms_path is not None:
+        tomograms = registry.tomograms_reader(tomograms_format, tomograms_path).read_tomograms(
+            tomograms_path, read_options or TomogramsReadOptions()
+        )
+        picks, report = annotate_picks(picks, tomograms, flip_y=flip_y)
+        logger.info("Matched %d picks (%d unmatched)", report.matched, report.unmatched)
     written = registry.picks_writer(output_format).write_picks(picks, output_path)
     return picks, written

@@ -83,7 +83,7 @@ them.
 |-----------------|---------|
 | `localize`      | **Main task:** 3D coordinates from 2D picks on the tilt images. |
 | `unstack`       | Write each tilt image as its own 2D `.mrc` file (for SPA pickers), plus matching geometry. |
-| `convert-picks` | Convert picks between formats (Topaz, per-micrograph RELION STARs, ParaPick STAR), resolving them against the tilt-series. |
+| `convert-picks` | Convert picks between formats, resolving them against the tilt-series. |
 | `project`       | Project 3D particles onto every tilt image, e.g. ground truth to train a 2D picker, or QC. |
 | `filter`        | Select particles by score, support or rank. |
 | `evaluate`      | Precision, recall, F1 and RMSE against a reference set. |
@@ -126,10 +126,12 @@ The packages are layered and can be used on their own:
   is read from the header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
   labels, or from `--tilt-image-size`.
 - **Picks:** pixel coordinates on the tilt images, as written by single-particle pickers.
-  The canonical ParaPick picks file is a single STAR table with `rlnTomoName`,
-  `rlnMicrographName`, `rlnCoordinateX/Y` and, optionally, `rlnAutopickFigureOfMerit` and
-  `rlnMicrographPixelSize` (for binned picks). Picks are matched to tilts by micrograph
-  path, file name or stem.
+  Read directly from RELION (STAR, autopick), crYOLO (STAR, CBOX, EMAN box), Topaz,
+  cryoSPARC (`.cs`), EMAN2 (`.box`) and Xmipp/Scipion (`.pos`). `--flip-y` handles pickers
+  whose y axis points the other way. The canonical ParaPick picks file is a single STAR
+  table with `rlnTomoName`, `rlnMicrographName`, `rlnCoordinateX/Y` and, optionally,
+  `rlnAutopickFigureOfMerit` and `rlnMicrographPixelSize` (for binned picks). Picks are
+  matched to tilts by micrograph path, file name or stem.
 - **Particles:** RELION 5 centred Ångström coordinates. Legacy pixel coordinates can be read
   with the geometry.
 

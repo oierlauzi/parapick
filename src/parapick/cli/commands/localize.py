@@ -63,6 +63,12 @@ class LocalizeCommand:
             help="Ignore 2D picks with a figure of merit below FOM.",
         )
         io.add_argument(
+            "--flip-y",
+            action="store_true",
+            help="Mirror the picks' y axis on the image height (pickers or micrographs with the "
+            "y axis pointing the other way).",
+        )
+        io.add_argument(
             "-o", "--output", type=Path, required=True, metavar="DIR", help="Output directory."
         )
         format_argument(
@@ -217,6 +223,7 @@ class LocalizeCommand:
             read_options=read_options_from(args),
             pixel_size=args.picks_pixel_size,
             min_pick_score=args.min_pick_score,
+            flip_y=args.flip_y,
             tilt_series=args.tilt_series,
             selection=selection_from(args),
             seed=args.seed,
