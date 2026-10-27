@@ -2,7 +2,7 @@
 
 ParaPick fits a 3D Gaussian mixture model (GMM) to 2D detections spread over the tilt
 images, by expectation-maximisation (EM). This page maps the equations of the paper (§2)
-to the code. It then describes the implementation choices and the optional extensions.
+to the code. It then describes the implementation choices and the robustness components.
 
 ## Notation
 
@@ -23,17 +23,22 @@ rotation into `P_i` and uses `ŷ_ij = y_ij − t_i`. Squared distances are uncha
 
 ## Equations ↔ code
 
-| Paper | What | Where |
+| Methods step | What | Where |
 |---|---|---|
-| (1) | `d²_ijk = ‖ŷ_ij − P_i μ_k‖²` | `gmm/em.py::tilt_statistics` |
-| (4)–(7) | capped Sinkhorn: `r_ijk = u_ij v_ik K_ijk`, `Σ_k r = 1`, `Σ_j r ≤ 1` | `gmm/sinkhorn.py::capped_sinkhorn` |
-| (8) | `μ_k = (Σ_i n_ik/σ_i² PᵢᵀPᵢ + εI)⁻¹ Σ_i Pᵢᵀ Σ_j r_ijk ŷ_ij/σ_i²` | `gmm/em.py::em_step` (batched 3×3 solves) |
-| (9) | `σ_i² = Σ_jk r_ijk d²_ijk / (2 M_i)` | `gmm/em.py::em_step` |
-| (11)–(13) | Dirichlet MAP weights `π_k ∝ max(0, n_k + α − 1)`, pruning | `gmm/em.py::em_step` |
-| `s_k = n_k / N` | confidence score | `gmm/fitter.py::EMFitter.fit` |
+| Distance | `d²_ijk = ‖ŷ_ij − P_i μ_k‖²` | `gmm/em.py::tilt_statistics` |
+| Capped Sinkhorn | `r_ijk = u_ij v_ik K_ijk`, `Σ_k r = 1`, `Σ_j r ≤ 1` (particle columns only) | `gmm/sinkhorn.py::capped_sinkhorn` |
+| Background column | `K_ij0 = π_0 · 2πσ_i² / A_i`, uncapped | `gmm/em.py::tilt_statistics`; `A_i` in `gmm/padding.py` |
+| Mean update | `μ_k = (Σ_i n_ik/σ_i² PᵢᵀPᵢ + εI)⁻¹ Σ_i Pᵢᵀ Σ_j r_ijk ŷ_ij/σ_i²` | `gmm/em.py::em_step` (batched 3×3 solves) |
+| Variance update | `σ_i² = Σ_{j,k≥1} r_ijk d²_ijk / (2 Σ_{j,k≥1} r_ijk)` | `gmm/em.py::em_step` |
+| Annealing | `σ_i² ← max(σ_i², τ)`, `τ ← γ² τ` | `gmm/em.py::em_step` |
+| Weights, pruning | `π_k ∝ max(0, n_k + α − 1)`, `π_0 ∝ n_0` (Dirichlet MAP) | `gmm/em.py::em_step` |
+| Informed initialisation | picks of the least tilted image lifted to random depths | `gmm/initialization.py::LiftedPicksInitializer` |
+| Merging | greedy, by decreasing `n_k`, within `ρ = 5 · median σ_i` | `gmm/postprocess.py::merge_duplicates` |
+| Score | `s_k = n_k / N`, after merging | `gmm/fitter.py::EMFitter.fit` |
 
-`tests/helpers/numpy_em.py` is a literal NumPy transcription of these equations, structured
-like the original proof of concept. `tests/unit/test_gmm.py` checks that one JAX EM step
+`tests/helpers/numpy_em.py` is a literal NumPy transcription of the core EM equations
+(distance, capped Sinkhorn, M-step, Dirichlet MAP weights), structured like the original
+proof of concept. `tests/unit/test_gmm.py` checks that one JAX EM step
 matches it to numerical precision.
 
 ## Implementation notes
@@ -55,11 +60,12 @@ matches it to numerical precision.
 - **Initial K.** `K⁽⁰⁾ = overcomplete_factor × max_i M_i`. The cap of one detection per
   tilt means at least `max_i M_i` components are needed.
 
-## Extensions beyond the paper
+## Robustness components
 
-These are on by default. Each can be switched off; doing all of the following reproduces the
-paper's model exactly: `background_fraction=None`, `annealing=0`, `merge_distance=0`, and
-`UniformBoxInitializer`.
+These four components are part of the method (paper, Methods) and are on by default. Each
+can be switched off for ablations. Switching off all of them leaves the plain EM model:
+`--no-background --annealing 0 --merge-distance 0 --init uniform`, or in Python
+`background_fraction=None`, `annealing=0`, `merge_distance=0` and `UniformBoxInitializer`.
 
 1. **Uniform background (outlier) term**, `background_fraction`. An extra column of the
    soft assignment has kernel `π_0 · 2πσ_i² / A_i`, which is the density `π_0 / A_i` of a
@@ -77,8 +83,8 @@ paper's model exactly: `background_fraction=None`, `annealing=0`, `merge_distanc
    Annealing lets them settle coarse-to-fine.
 3. **Lifted initialisation**, `LiftedPicksInitializer`. The picks of the least tilted image
    are back-projected along the viewing direction, at a random depth inside the box, so most
-   initial components start on the ray of a real particle. The paper's uniform
-   initialisation is available as `--init uniform`.
+   initial components start on the ray of a real particle. Uniform initialisation in the
+   box is available as `--init uniform`.
 4. **Duplicate merging**, `merge_distance`. After the fit, components closer than
    `5 × median σ_i` are merged (support-weighted mean, summed support). They are duplicates
    of one particle that took its detections on different tilts. Set it to about the

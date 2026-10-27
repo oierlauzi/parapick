@@ -139,21 +139,6 @@ See [`docs/conventions.md`](docs/conventions.md) for the frames, every STAR labe
 the ParaPick-specific `ppk*` labels), and how to write a format plug-in. See
 [`docs/algorithm.md`](docs/algorithm.md) for how the paper's equations map to the code.
 
-## Reproducing the paper's model
-
-The defaults add three robustness extensions to the paper's EM. They are documented in
-[`docs/algorithm.md`](docs/algorithm.md):
-- a uniform **background** component that absorbs false-positive picks;
-- deterministic **annealing** of the per-tilt σ;
-- a picks-informed (**lifted**) initialisation, plus merging of duplicate components.
-
-On simulated data with realistic false-positive rates, these turn F1 scores of about 0.3–0.7
-into about 0.95–0.99. To run the paper's original model exactly:
-
-```bash
-parapick localize ... --no-background --annealing 0 --merge-distance 0 --init uniform
-```
-
 ## Development
 
 ```bash
