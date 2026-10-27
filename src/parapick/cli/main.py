@@ -73,15 +73,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         configure_jax(args.device, args.x64)
         return command.run(args, registry)
+    # Before OSError, which BrokenPipeError subclasses.
+    except BrokenPipeError:  # pragma: no cover - e.g. `parapick formats | head -1`
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        return 1
     except (CommandError, ValueError, KeyError, OSError) as error:
         if args.verbose > 0:
             logger.exception("parapick %s failed", command.name)
         else:
             logger.error("%s", error)
-        return 1
-    except BrokenPipeError:  # pragma: no cover - e.g. `parapick formats | head -1`
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
         return 1
     except KeyboardInterrupt:  # pragma: no cover
         return 130

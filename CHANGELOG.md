@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Piping CLI output into a command that closes early (e.g. `parapick formats | head -1`) no
+  longer logs `[Errno 32] Broken pipe`.
+
 ## [0.1.0] - 2026-10-27
 
 ### Added
