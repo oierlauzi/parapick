@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Pick formats `cryolo-cbox` (crYOLO CBOX, STAR and legacy, with confidences), `eman-box`
+  (EMAN `.box`), `cryosparc` (`.cs` picker output) and `xmipp-pos` (Xmipp/Scipion `.pos`,
+  read and write). They share a per-micrograph base (`formats/per_micrograph.py`), onto
+  which `relion-coords` was refactored.
+- `--flip-y` for `localize` and `convert-picks`, for pickers with the opposite y axis.
 - `parapick unstack`: writes one 2D `.mrc` per tilt image, because most SPA pickers (crYOLO,
   Topaz in 2D mode) need one micrograph per file. It also writes matching geometry, so picks
   on the unstacked images localise directly.

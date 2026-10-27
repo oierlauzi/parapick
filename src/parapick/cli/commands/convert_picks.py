@@ -43,6 +43,12 @@ class ConvertPicksCommand:
             metavar="ANGST",
             help="Record the pixel size of the picked images in the output.",
         )
+        parser.add_argument(
+            "--flip-y",
+            action="store_true",
+            help="Mirror the picks' y axis on the image height (pickers or micrographs with the "
+            "y axis pointing the other way).",
+        )
 
     def run(self, args: argparse.Namespace, registry: FormatRegistry) -> int:
         """Run."""
@@ -55,6 +61,7 @@ class ConvertPicksCommand:
             tomograms_format=args.tomograms_format,
             read_options=read_options_from(args),
             pixel_size=args.pixel_size,
+            flip_y=args.flip_y,
             registry=registry,
         )
         logger.info("Wrote %d picks to %d file(s)", len(picks), len(written))

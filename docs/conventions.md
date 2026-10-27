@@ -107,12 +107,42 @@ Ambiguous matches are an error.
 
 ### Other pick formats
 
-- `relion-coords`: per-micrograph RELION coordinate STAR files, given as an autopick index
-  (`rlnMicrographName` + `rlnMicrographCoordinates`), a directory or a single file.
-- `topaz`: TSV with `image_name x_coord y_coord [score]`.
+Picks are read from the output of the common single-particle pickers. Per-micrograph formats
+accept a directory (every file with the format's suffix) or a single file. The tilt is
+identified by the file stem, so pick on files whose names match the tilts, e.g. the output of
+`parapick unstack`. The format is detected automatically; `--picks-format` forces it.
 
-`parapick convert-picks INPUT --tomograms tomograms.star -o picks.star` turns either one into
-a self-describing ParaPick picks file.
+| Format | Files | Coordinates | Score | Read | Write | Written by |
+|---|---|---|---|---|---|---|
+| `relion5` | one STAR (`rlnMicrographName` + `rlnCoordinateX/Y`) | centre | `rlnAutopickFigureOfMerit` | ✓ | ✓ | ParaPick; RELION/Warp combined particle STARs |
+| `relion-coords` | one STAR per micrograph, or an autopick index | centre | `rlnAutopickFigureOfMerit` | ✓ | ✓ | RELION autopick (LoG, template, Topaz), crYOLO `STAR/`, Gautomatch, Warp BoxNet |
+| `topaz` | one TSV (`image_name x_coord y_coord score`) | centre | `score` | ✓ | ✓ | `topaz extract` |
+| `cryolo-cbox` | `.cbox` per micrograph (STAR ≥ 1.8, or legacy text) | lower-left corner + width/height | `Confidence` | ✓ | | crYOLO `CBOX/` |
+| `eman-box` | `.box` per micrograph (`x y w h`) | lower-left corner + width/height | — | ✓ | | crYOLO `EMAN/`, EMAN2 e2boxer, Gautomatch |
+| `cryosparc` | one `.cs` (NumPy structured array) | fractions of `micrograph_shape`, bottom-left origin | `pick_stats/ncc_score` | ✓ | | cryoSPARC blob, template, Topaz and deep pickers |
+| `xmipp-pos` | `.pos` per micrograph (`_xcoor _ycoor [_cost]`) | centre | `_cost` | ✓ | ✓ | Xmipp / Scipion pickers |
+
+Conversions to ParaPick's frame (pixel index, x = column, y = row, as in RELION):
+
+- **Box corners** (EMAN, CBOX): centre = corner + size/2, with no y flip. This is how crYOLO
+  converts its own boxes to RELION STAR.
+- **cryoSPARC:** `x = center_x_frac × width`, `y = (1 − center_y_frac) × height`, following
+  pyem's `csparc2star` defaults. This is correct for micrographs imported into cryoSPARC. The
+  numeric uid prefix cryoSPARC adds to imported file names (`<uid>_name.mrc`) is removed
+  before matching.
+- **Opposite y axis:** if a picker or a motion-correction step left the y axis pointing the
+  other way, pass `--flip-y` to `localize` or `convert-picks` (`y ← image height − y`).
+
+**Tip:** crYOLO's CBOX files keep every detection with its confidence, including those below
+the picking threshold. ParaPick works best with permissive picks, so localise from `CBOX/` and
+threshold with `--min-pick-score` rather than relying on crYOLO's threshold.
+
+`parapick convert-picks INPUT --tomograms tomograms.star -o picks.star` turns any of them
+into a self-describing ParaPick picks file.
+
+**Not supported yet** (a format plug-in can add them): EMAN2 `.json` boxer databases, IMOD
+`.mod` models, Scipion `.sqlite` sets (Scipion can export to the formats above), and writing
+cryoSPARC `.cs` files.
 
 ### 3D particles (`relion5`, read and write)
 

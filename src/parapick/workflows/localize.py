@@ -189,6 +189,7 @@ def localize(
     fitter: Fitter | None = None,
     pixel_size: float | None = None,
     min_pick_score: float | None = None,
+    flip_y: bool = False,
     seed: int = 0,
     progress: Callable[[TiltSeriesLocalization], None] | None = None,
 ) -> LocalizationResult:
@@ -209,6 +210,9 @@ def localize(
         recorded in ``picks``.
     min_pick_score
         Discard 2D picks whose figure of merit is below this value.
+    flip_y
+        Mirror the picks' y coordinates on the image height (see
+        :func:`~parapick.tomography.bind_picks`).
     seed
         Base random seed. Tilt-series ``i`` uses ``seed + i``.
     progress
@@ -222,7 +226,7 @@ def localize(
             if picks.scores is None:
                 raise ValueError("The picks have no scores to threshold")
             picks = picks.select(picks.scores >= min_pick_score)
-        bound, match_report = bind_picks(picks, tomograms, pixel_size=pixel_size)
+        bound, match_report = bind_picks(picks, tomograms, pixel_size=pixel_size, flip_y=flip_y)
     else:
         bound = dict(picks)
 
@@ -251,6 +255,7 @@ def run_localize(
     read_options: TomogramsReadOptions | None = None,
     pixel_size: float | None = None,
     min_pick_score: float | None = None,
+    flip_y: bool = False,
     tilt_series: Sequence[str] | None = None,
     selection: Selection | None = None,
     seed: int = 0,
@@ -275,6 +280,7 @@ def run_localize(
         fitter=fitter,
         pixel_size=pixel_size,
         min_pick_score=min_pick_score,
+        flip_y=flip_y,
         seed=seed,
     )
     particles = result.particles(selection)
