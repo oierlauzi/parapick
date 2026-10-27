@@ -63,6 +63,10 @@ class TiltSeries:
         frame, if known. Used to initialise the fit and to bound simulations.
     metadata
         Opaque, format-specific information preserved for round-tripping.
+    images
+        Reference to the image of each tilt (``path`` or ``N@stack``, see
+        :mod:`parapick.formats.images`). Defaults to ``tilt_ids``. They differ when tilts are
+        identified by name but their pixels live in a stack.
     """
 
     name: str
@@ -73,10 +77,15 @@ class TiltSeries:
     image_size: tuple[int, int] | None = None
     volume_size: tuple[float, float, float] | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    images: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         n_tilts = len(self.tilt_ids)
         object.__setattr__(self, "tilt_ids", tuple(str(t) for t in self.tilt_ids))
+        images = tuple(str(i) for i in self.images) or self.tilt_ids
+        if len(images) != n_tilts:
+            raise ValueError(f"Tilt-series {self.name!r} needs one image reference per tilt")
+        object.__setattr__(self, "images", images)
         object.__setattr__(
             self, "projections", _frozen_array(self.projections, (n_tilts, 2, 3), "projections")
         )

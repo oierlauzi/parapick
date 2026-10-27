@@ -12,9 +12,11 @@ from parapick.cli.commands.formats import FormatsCommand
 from parapick.cli.commands.localize import LocalizeCommand
 from parapick.cli.commands.project import ProjectCommand
 from parapick.cli.commands.simulate import SimulateCommand
+from parapick.cli.commands.unstack import UnstackCommand
 
 COMMANDS: tuple[Command, ...] = (
     LocalizeCommand(),
+    UnstackCommand(),
     ConvertPicksCommand(),
     ProjectCommand(),
     FilterCommand(),

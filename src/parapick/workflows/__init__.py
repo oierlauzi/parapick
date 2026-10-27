@@ -12,6 +12,7 @@ from parapick.workflows.localize import (
 )
 from parapick.workflows.project import project_particles
 from parapick.workflows.simulate import SimulatedDataset, SimulationConfig, simulate, write_dataset
+from parapick.workflows.unstack import run_unstack, unstack
 
 __all__ = [
     "Evaluation",
@@ -27,7 +28,9 @@ __all__ = [
     "localize_tilt_series",
     "project_particles",
     "run_localize",
+    "run_unstack",
     "select_particles",
     "simulate",
+    "unstack",
     "write_dataset",
 ]
