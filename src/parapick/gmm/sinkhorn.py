@@ -1,4 +1,4 @@
-"""Capped Sinkhorn scaling for the E-step (paper eqs. 4–7)."""
+"""Capped Sinkhorn scaling for the E-step (paper, Methods)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def capped_sinkhorn(
     This is the entropic soft assignment ``r_jk = u_j v_k K_jk`` such that
     ``Σ_k r_jk = 1`` (each detection is fully explained) and ``Σ_j r_jk ≤ 1`` (a component
     collects at most one detection per tilt). It alternates the closed-form row projection
-    (eq. 6) with the capped column projection (eq. 7), which only scales down over-full
+    with the capped column projection, which only scales down over-full
     components. It ends with a row projection, so the row constraint holds exactly.
 
     For stability, each row of the kernel is first divided by its maximum. This only rescales

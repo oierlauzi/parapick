@@ -31,7 +31,7 @@ class GMMFit:
     means: NDArray[np.float64]
     """``(K, 3)`` centres of the surviving components, sorted by decreasing support."""
     support: NDArray[np.float64]
-    """``(K,)`` effective number of detections ``n_k`` (eq. 12)."""
+    """``(K,)`` effective number of detections ``n_k``."""
     scores: NDArray[np.float64]
     """``(K,)`` confidence scores ``s_k = n_k / N``."""
     sigmas: NDArray[np.float64]
@@ -78,7 +78,7 @@ class Fitter(Protocol):
 
 
 class EMFitter:
-    """Fits the projected Gaussian mixture with EM in JAX (paper §2).
+    """Fits the projected Gaussian mixture with EM in JAX (paper, Methods).
 
     Parameters
     ----------
@@ -86,7 +86,7 @@ class EMFitter:
         Hyper-parameters.
     initializer
         Strategy for the initial centres. The default lifts the picks of the least tilted image
-        into 3D; :class:`~parapick.gmm.UniformBoxInitializer` is the paper's uniform start.
+        into 3D; :class:`~parapick.gmm.UniformBoxInitializer` draws them uniformly in the box.
     device
         JAX device to run on. ``None`` uses JAX's default device.
     """

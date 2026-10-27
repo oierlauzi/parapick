@@ -1,4 +1,4 @@
-"""Expectation-maximisation for the projected 3D Gaussian mixture (paper §2).
+"""Expectation-maximisation for the projected 3D Gaussian mixture (paper, Methods).
 
 Everything here is a pure JAX function on fixed-shape, padded arrays, so it can be
 ``jit``-compiled once per shape bucket and run on CPU or GPU. Pruned components are not
@@ -8,19 +8,18 @@ Notation (as in the paper): ``i`` indexes tilts (N), ``j`` detections (M, padded
 components (K). Detections are *centred*: the translation of each tilt has already been
 subtracted, so the model is ``ŷ_ij ≈ P_i μ_k``.
 
-Deterministic annealing (extension)
------------------------------------
+Deterministic annealing
+-----------------------
 The variances are bounded below by a floor that starts at ``σ⁽⁰⁾²`` and decays by
 ``annealing²`` per iteration. Components then settle coarse-to-fine instead of freezing as
-soon as the well-fitted particles drive ``σ_i`` down. ``annealing = 0`` disables it (paper).
+soon as the well-fitted particles drive ``σ_i`` down. ``annealing = 0`` disables it.
 
-Optional background term (extension)
-------------------------------------
-With ``log_background = -inf`` (the default) the model is exactly the paper's. A finite value
-adds a uniform *background* density ``π_0 / A_i`` over each tilt image (area ``A_i``). It is an
-extra, uncapped column of the soft assignment that absorbs false-positive picks, so they no
-longer inflate ``σ_i`` or spawn spurious components. ``π_0`` is re-estimated jointly with the
-component weights.
+Background term
+---------------
+A finite ``log_background`` adds a uniform *background* density ``π_0 / A_i`` over each tilt
+image (area ``A_i``). It is an extra, uncapped column of the soft assignment that absorbs
+false-positive picks, so they no longer inflate ``σ_i`` or spawn spurious components. ``π_0``
+is re-estimated jointly with the component weights. ``log_background = -inf`` disables it.
 """
 
 from __future__ import annotations
@@ -80,7 +79,7 @@ class EMState(NamedTuple):
     log_weights: jax.Array
     """``(K,)`` log mixture weights. ``-inf`` for pruned components."""
     log_background: jax.Array
-    """Log background weight ``π_0``. ``-inf`` disables the background (paper model)."""
+    """Log background weight ``π_0``. ``-inf`` disables the background."""
     sigma2: jax.Array
     """``(N,)`` per-tilt variances ``σ_i²``."""
     sigma2_floor: jax.Array
@@ -126,7 +125,10 @@ def tilt_statistics(
     mask: jax.Array,
     sinkhorn_iterations: int,
 ) -> TiltStatistics:
-    """E-step for one tilt: responsibilities (eqs. 1, 4–7) reduced to sufficient statistics."""
+    """E-step for one tilt, reduced to sufficient statistics.
+
+    Computes the distances and the capped Sinkhorn responsibilities.
+    """
     n_components = means.shape[0]
     projected = means @ projection.T  # (K, 2)
     residuals = detections[:, None, :] - projected[None, :, :]  # (M, K, 2)
@@ -156,7 +158,7 @@ def em_step(
     hyper: Hyperparameters,
     sinkhorn_iterations: int,
 ) -> EMState:
-    """One EM iteration: E-step plus the M-step updates of eqs. 8, 9 and 13."""
+    """One EM iteration: E-step, then the M-step updates of the means, variances and weights."""
     means, log_weights, sigma2 = state.means, state.log_weights, state.sigma2
     active = jnp.isfinite(log_weights)
     use_background = jnp.isfinite(state.log_background)
@@ -190,7 +192,7 @@ def em_step(
         ),
     )
 
-    # Means (eq. 8): (Σ_i n_ik/σ_i² PᵢᵀPᵢ + εI) μ_k = Σ_i Pᵢᵀ (Σ_j r_ijk ŷ_ij) / σ_i².
+    # Means: (Σ_i n_ik/σ_i² PᵢᵀPᵢ + εI) μ_k = Σ_i Pᵢᵀ (Σ_j r_ijk ŷ_ij) / σ_i².
     inv_s2 = 1.0 / sigma2
     gram = jnp.einsum("nai,naj->nij", observations.projections, observations.projections)
     system = jnp.einsum("nk,nij->kij", stats.counts * inv_s2[:, None], gram)
@@ -202,8 +204,8 @@ def em_step(
     identity = jnp.eye(3, dtype=dtype)
     solved = jnp.linalg.solve(system + eps[:, None, None] * identity, rhs[..., None])[..., 0]
 
-    # Weights, MAP under the Dirichlet prior (eq. 13), and pruning.
-    support = jnp.sum(stats.counts, axis=0)  # n_k (eq. 12)
+    # Weights, MAP under the Dirichlet prior, and pruning.
+    support = jnp.sum(stats.counts, axis=0)  # n_k
     mass = jnp.where(active, jnp.maximum(support + hyper.alpha - 1.0, 0.0), 0.0)
     survive = mass > 0
     # Never prune everything: keep the best-supported component.
@@ -221,7 +223,7 @@ def em_step(
     movable = survive & (support > 0)
     new_means = jnp.where(movable[:, None], solved, means)
 
-    # Per-tilt variances (eq. 9), over the responsibility held by the components (with the
+    # Per-tilt variances, over the responsibility held by the components (with the
     # background disabled this is the number of detections M_i). Empty tilts keep σ_i.
     component_mass = jnp.sum(stats.counts, axis=1)
     new_sigma2 = jnp.where(

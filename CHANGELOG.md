@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-27
+
 ### Added
 - Pick formats `cryolo-cbox` (crYOLO CBOX, STAR and legacy, with confidences), `eman-box`
   (EMAN `.box`), `cryosparc` (`.cs` picker output) and `xmipp-pos` (Xmipp/Scipion `.pos`,
@@ -24,10 +26,13 @@ All notable changes to this project are documented here. The format follows
 - First implementation of ParaPick: 3D particle localization from 2D tilt-series picks via a
   projected Gaussian mixture fitted by EM (capped Sinkhorn E-step, Dirichlet MAP pruning),
   written in JAX (CPU/GPU).
-- Robustness extensions (each can be disabled): uniform background term, deterministic
+- Robustness components (each can be disabled): uniform background term, deterministic
   annealing, lifted initialisation, duplicate merging.
 - Format-neutral data model, with format plug-ins: RELION 5 (tomograms, picks, particles,
   optimisation set), per-micrograph RELION coordinates, Topaz. Third-party formats register
   through the `parapick.formats` entry-point group.
 - `parapick` CLI with the sub-commands `localize`, `convert-picks`, `project`, `filter`,
   `evaluate`, `simulate` and `formats`, plus a Python API.
+
+[Unreleased]: https://github.com/oierlauzi/parapick/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/oierlauzi/parapick/releases/tag/v0.1.0

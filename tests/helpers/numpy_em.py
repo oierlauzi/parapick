@@ -1,9 +1,10 @@
-"""Straightforward NumPy transcription of the paper's EM step (eqs. 1-13).
+"""Straightforward NumPy transcription of the core EM step of the paper's Methods.
 
 It follows the structure of the original proof of concept (Xmipp ``coordinate_backprojection``):
 a log-domain Sinkhorn with row/column scalings, then the closed-form M-step. It is
 deliberately loop-based and unoptimised, and it serves as the reference for the JAX
-implementation. The background term is not modelled (paper model).
+implementation. The robustness components are not modelled: the comparison runs with the
+background disabled and no annealing.
 """
 
 from __future__ import annotations
@@ -49,16 +50,16 @@ def em_step(
     for i, (y, p) in enumerate(zip(detections, projections, strict=True)):
         if len(y) == 0:
             continue
-        d2 = ((y[:, None, :] - (means @ p.T)[None]) ** 2).sum(-1)  # eq. 1
-        r = sinkhorn_log(log_weights[None] - d2 / (2 * sigma2[i]), n_sinkhorn)  # eqs. 4-7
+        d2 = ((y[:, None, :] - (means @ p.T)[None]) ** 2).sum(-1)  # distance
+        r = sinkhorn_log(log_weights[None] - d2 / (2 * sigma2[i]), n_sinkhorn)  # capped Sinkhorn
         n_ik = r.sum(0)
-        system += (n_ik / sigma2[i])[:, None, None] * (p.T @ p)[None]  # eq. 8, left
-        rhs += ((r.T @ y) / sigma2[i]) @ p  # eq. 8, right
+        system += (n_ik / sigma2[i])[:, None, None] * (p.T @ p)[None]  # mean update, system
+        rhs += ((r.T @ y) / sigma2[i]) @ p  # mean update, right-hand side
         support += n_ik
-        new_sigma2[i] = (r * d2).sum() / (2 * len(y))  # eq. 9
+        new_sigma2[i] = (r * d2).sum() / (2 * len(y))  # variance update
     eps = regularization * np.trace(system, axis1=1, axis2=2) / 3 + np.finfo(float).tiny
     solved = np.linalg.solve(system + eps[:, None, None] * np.eye(3), rhs[..., None])[..., 0]
-    mass = np.where(weights > 0, np.maximum(support + alpha - 1, 0), 0)  # eq. 13
+    mass = np.where(weights > 0, np.maximum(support + alpha - 1, 0), 0)  # Dirichlet MAP weights
     new_weights = mass / mass.sum()
     new_means = np.where(((mass > 0) & (support > 0))[:, None], solved, means)
     return new_means, new_weights, new_sigma2, np.where(mass > 0, support, 0)
