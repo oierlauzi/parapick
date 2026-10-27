@@ -12,9 +12,11 @@ import starfile
 
 import parapick as pp
 from parapick.cli.main import main
+from parapick.formats.images import ImageIOError, failed
 from parapick.formats.relion5 import Relion5Format
 from parapick.formats.topaz import TopazFormat
-from parapick.workflows import run_unstack, write_dataset
+from parapick.formats.vitrio_images import VitrioImageIO
+from parapick.workflows import run_unstack, unstack, write_dataset
 
 RELION = Relion5Format()
 
@@ -146,3 +148,91 @@ def test_link_single_images(tmp_path, dataset):
     assert first.is_symlink()
     with mrcfile.open(first) as mrc:
         assert float(mrc.data.mean()) == 3.0
+
+
+class _RecordingIO:
+    """Delegates to vitrio and records the order of the calls; can fail one write."""
+
+    def __init__(self, fail_write: int | None = None, fail_finish: str | None = None) -> None:
+        self.inner = VitrioImageIO(workers=2)
+        self.calls: list[str] = []
+        self.fail_write = fail_write
+        self.fail_finish = fail_finish
+        self.writes = 0
+
+    def image_size(self, reference):
+        return self.inner.image_size(reference)
+
+    def read_batch(self, references):
+        self.calls.append("read")
+        return self.inner.read_batch(references)
+
+    def write_batch(self, images, paths):
+        self.calls.append("write")
+        self.writes += 1
+        if self.writes == self.fail_write:
+            return failed(ImageIOError("disk full"))
+        return self.inner.write_batch(images, paths)
+
+    def finish(self, path):
+        self.calls.append("finish")
+        finishing = self.inner.finish(path)
+        if path.name == self.fail_finish:
+            finishing.result()
+            return failed(ImageIOError("flush failed"))
+        return finishing
+
+
+def test_unstack_pipeline_keeps_batches_in_flight(tmp_path, stacked):
+    tomograms = RELION.read_tomograms(stacked, pp.formats.TomogramsReadOptions())
+    io = _RecordingIO()
+    _, written = unstack(tomograms, tmp_path / "out", anchor=stacked, io=io,
+                         batch_size=2, in_flight=3)  # fmt: skip
+    n_images = sum(ts.n_tilts for ts in tomograms)
+    assert len(written) == n_images
+    # Three batches are read before the first is written, and three are written before the
+    # first is finished.
+    assert io.calls[:4] == ["read", "read", "read", "write"]
+    first_finish = io.calls.index("finish")
+    assert io.calls[:first_finish].count("write") == 3
+    assert io.calls.count("finish") == n_images
+    for path in written:
+        with mrcfile.open(path) as mrc:
+            assert mrc.header.nz == 1
+
+
+def test_failed_unstack_deletes_incomplete_files_and_resumes(tmp_path, stacked):
+    tomograms = RELION.read_tomograms(stacked, pp.formats.TomogramsReadOptions())
+    out = tmp_path / "out"
+    with pytest.raises(ImageIOError, match="disk full"):
+        unstack(tomograms, out, anchor=stacked, io=_RecordingIO(fail_write=3),
+                batch_size=2, in_flight=2)  # fmt: skip
+    kept = sorted((out / "micrographs").glob("*.mrc"))
+    assert 0 < len(kept) < sum(ts.n_tilts for ts in tomograms)
+    for path in kept:  # every file left behind is complete
+        with mrcfile.open(path) as mrc:
+            assert mrc.data.shape == (160, 192)
+    names = [p.name for p in kept]
+    assert "TS_01_005.mrc" not in names and "TS_01_006.mrc" not in names  # the failed batch
+
+    unstacked, written = unstack(tomograms, out, anchor=stacked)
+    assert {p.name for p in written}.isdisjoint(names)
+    for s, ts in enumerate(unstacked):
+        for i, name in enumerate(ts.tilt_ids):
+            with mrcfile.open(name) as mrc:
+                assert float(mrc.data.mean()) == _section_value(s, i)
+
+
+def test_failed_finish_deletes_only_that_file(tmp_path, stacked):
+    tomograms = RELION.read_tomograms(stacked, pp.formats.TomogramsReadOptions())
+    out = tmp_path / "out"
+    io = _RecordingIO(fail_finish="TS_01_005.mrc")
+    with pytest.raises(ImageIOError, match="flush failed"):
+        unstack(tomograms, out, anchor=stacked, io=io, batch_size=2, in_flight=2)
+    names = {p.name for p in (out / "micrographs").glob("*.mrc")}
+    assert "TS_01_005.mrc" not in names
+    assert {"TS_01_001.mrc", "TS_01_004.mrc", "TS_01_006.mrc"} <= names
+    # Nothing is left declared on the writer: the same paths can be written again.
+    io.fail_finish = None
+    _, written = unstack(tomograms, out, anchor=stacked, io=io, overwrite=True)
+    assert len(written) == sum(ts.n_tilts for ts in tomograms)

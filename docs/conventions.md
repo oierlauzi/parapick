@@ -70,13 +70,16 @@ new per-tilt images.
 - `OUT/tomograms.star` and `OUT/tilt_series/<TS>.star`: the same geometry and metadata, with
   `rlnMicrographName` pointing at the new files (layout B).
 
-Stacks are read section by section, as MRC2014 image stacks (space group 0, as IMOD writes
-them). Stacks flagged as volumes (space group 1) are read once, whole. Reading and writing go
-through vitrio, in batches of `--batch-size` images (bounding memory) arranged as a pipeline:
-the next batch is requested before the current one is written. The bundled image I/O
-(`parapick.formats.vitrio_images.VitrioImageIO`) is synchronous for now. An asynchronous
-`ImageIO` (e.g. on vitrio's `read_batch_async` / `write_batch_async`) can overlap the steps
-without changes to the workflow.
+Stacks are read section by section, whether they are MRC2014 image stacks (space group 0, as
+IMOD writes them) or flagged as volumes (space group 1). Reading and writing go through
+vitrio's asynchronous interface, in batches of `--batch-size` images arranged as a pipeline:
+- up to `--in-flight` batches are read ahead of the one being written;
+- up to `--in-flight` batches are written at once;
+- each file is finished (flushed and closed, with vitrio's `close_async`) as soon as its batch
+  is written, with up to 16 finishing at once.
+
+Memory holds about `2 × in-flight × batch-size` tilt images. If a run fails, files that were
+not completely written are deleted, so a re-run (which keeps existing files) redoes them.
 
 Pick on `OUT/micrographs/` and pass `--tomograms OUT/tomograms.star` to `convert-picks` and
 `localize`.

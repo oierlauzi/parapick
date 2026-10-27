@@ -44,9 +44,17 @@ class UnstackCommand:
         parser.add_argument(
             "--batch-size",
             type=int,
-            default=8,
+            default=4,
             metavar="N",
-            help="Images read and written per batch; bounds memory use (default: 8).",
+            help="Images read and written per batch (default: 4).",
+        )
+        parser.add_argument(
+            "--in-flight",
+            type=int,
+            default=4,
+            metavar="N",
+            help="Batches read ahead, and batches written, at once. Memory holds about "
+            "2 × N × batch-size images (default: 4).",
         )
 
     def run(self, args: argparse.Namespace, registry: FormatRegistry) -> int:
@@ -60,6 +68,7 @@ class UnstackCommand:
             link=args.link,
             overwrite=args.overwrite,
             batch_size=args.batch_size,
+            in_flight=args.in_flight,
             registry=registry,
         )
         return 0

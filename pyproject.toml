@@ -36,7 +36,7 @@ dependencies = [
     "pandas>=2.1",
     "scipy>=1.11",
     "starfile>=0.5.6",
-    "vitrio>=0.1.4",
+    "vitrio>=0.2.0",
 ]
 
 [project.optional-dependencies]

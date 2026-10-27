@@ -6,12 +6,11 @@ Tilt images are referenced the way RELION does it:
 * ``N@path.mrcs``: section ``N`` (1-based) of a stack;
 * ``path.st:mrc``: a RELION *type suffix*, naming the format of an unusual extension.
 
-Pixel data goes through an :class:`ImageIO`. Its batch operations return a :class:`Pending`
-result instead of blocking. The bundled implementation
-(:class:`~parapick.formats.vitrio_images.VitrioImageIO`) completes them synchronously for now,
-but callers are written as pipelines (issue the next read, then wait for the previous one), so
-an asynchronous implementation can overlap reads, writes and computation without changes to
-them.
+Pixel data goes through an :class:`ImageIO`. Its operations return a :class:`Pending` result
+instead of blocking, so callers can keep several reads, writes and file finishes in flight and
+overlap them. The bundled implementation
+(:class:`~parapick.formats.vitrio_images.VitrioImageIO`) runs them on vitrio's asynchronous
+interface.
 """
 
 from __future__ import annotations
@@ -130,8 +129,9 @@ def failed(error: BaseException) -> Future[T]:
 class ImageIO(Protocol):
     """Reads and writes 2D images in batches.
 
-    Batch operations may return before they finish. Callers wait on the returned
-    :class:`Pending` and must keep the arrays they pass unchanged until it is done.
+    Operations may return before they finish. Callers wait on the returned :class:`Pending`
+    and must keep the arrays they pass unchanged until it is done. A file written with
+    :meth:`write_batch` is complete only once :meth:`finish` has finished it.
     """
 
     def image_size(self, reference: ImageReference) -> tuple[int, int]:
@@ -143,7 +143,16 @@ class ImageIO(Protocol):
         ...
 
     def write_batch(self, images: NDArray[np.float32], paths: Sequence[Path]) -> Pending[None]:
-        """Write each image of a ``(B, height, width)`` array to its own single-image file."""
+        """Write each image of a ``(B, height, width)`` array to its own single-image file.
+
+        Once the writes are done, each file still has to be finished with :meth:`finish`. If
+        they fail, the files are left finished (possibly incomplete) and need no
+        :meth:`finish`.
+        """
+        ...
+
+    def finish(self, path: Path) -> Pending[None]:
+        """Finish a file written with :meth:`write_batch`: flush it to storage and close it."""
         ...
 
 
