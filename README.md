@@ -59,9 +59,30 @@ parapick filter localize/particles.star --min-score 0.3 --tomograms tomograms.st
 
 Run `parapick --help` and `parapick <command> --help` for all options.
 
+### Picking on stacked tilt-series
+
+Most single-particle pickers need one micrograph per file. crYOLO rejects MRC files with more
+than one section, and Topaz (2D) treats each file as one micrograph. Tilt-series, however,
+often come as one stack per tilt-series (IMOD, AreTomo, Warp, RELION's IMOD import).
+`unstack` writes each tilt as its own 2D `.mrc` file, together with a copy of the geometry
+that points at them:
+
+```bash
+parapick unstack --tomograms tomograms.star -o unstacked/
+# pick on unstacked/micrographs/*.mrc (files named <TS>_<NNN>.mrc), e.g. with Topaz or crYOLO
+parapick convert-picks topaz_picks.txt --tomograms unstacked/tomograms.star -o picks.star
+parapick localize --tomograms unstacked/tomograms.star --picks picks.star -o localize/
+```
+
+The images keep their native sampling, so pick coordinates need no conversion. The new
+`tomograms.star` has the same geometry and RELION metadata, so it can replace the original
+downstream. `--link` symlinks tilts that are already single `.mrc` files instead of copying
+them.
+
 | Command         | Purpose |
 |-----------------|---------|
 | `localize`      | **Main task:** 3D coordinates from 2D picks on the tilt images. |
+| `unstack`       | Write each tilt image as its own 2D `.mrc` file (for SPA pickers), plus matching geometry. |
 | `convert-picks` | Convert picks between formats (Topaz, per-micrograph RELION STARs, ParaPick STAR), resolving them against the tilt-series. |
 | `project`       | Project 3D particles onto every tilt image, e.g. ground truth to train a 2D picker, or QC. |
 | `filter`        | Select particles by score, support or rank. |
@@ -102,7 +123,7 @@ The packages are layered and can be used on their own:
 - **Geometry:** RELION 5 `tomograms.star` and the per tilt-series STAR files
   (`rlnTomoXTilt`, `rlnTomoYTilt`, `rlnTomoZRot`, `rlnTomo{X,Y}ShiftAngst`). ParaPick uses
   exactly RELION's projection model, including its centring conventions. The tilt-image size
-  is read from the MRC header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
+  is read from the header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
   labels, or from `--tilt-image-size`.
 - **Picks:** pixel coordinates on the tilt images, as written by single-particle pickers.
   The canonical ParaPick picks file is a single STAR table with `rlnTomoName`,

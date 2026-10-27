@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `parapick unstack`: writes one 2D `.mrc` per tilt image, because most SPA pickers (crYOLO,
+  Topaz in 2D mode) need one micrograph per file. It also writes matching geometry, so picks
+  on the unstacked images localise directly.
+- Image I/O through [vitrio](https://pypi.org/project/vitrio/) (MRC, TIFF, EER, DM), behind a
+  batch `ImageIO` interface that returns pending results. It is synchronous for now and ready
+  for asynchronous implementations. `mrcfile` is no longer a runtime dependency.
+- The RELION 5 reader supports the stacked layout (`rlnTomoTiltSeriesName`, with or without
+  per-tilt `rlnMicrographName`). `TiltSeries.images` separates where each tilt's pixels are
+  from how the tilt is identified.
 - First implementation of ParaPick: 3D particle localization from 2D tilt-series picks via a
   projected Gaussian mixture fitted by EM (capped Sinkhorn E-step, Dirichlet MAP pruning),
   written in JAX (CPU/GPU).

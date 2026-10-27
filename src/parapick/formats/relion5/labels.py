@@ -10,6 +10,9 @@ from __future__ import annotations
 TOMO_NAME = "rlnTomoName"
 TILT_SERIES_STAR = "rlnTomoTiltSeriesStarFile"
 TILT_SERIES_PIXEL_SIZE = "rlnTomoTiltSeriesPixelSize"
+TILT_SERIES_NAME = "rlnTomoTiltSeriesName"
+"""Stack holding all tilts (IMOD-import layout); takes precedence over per-tilt images."""
+FRAME_COUNT = "rlnTomoFrameCount"
 TOMO_SIZE = ("rlnTomoSizeX", "rlnTomoSizeY", "rlnTomoSizeZ")
 TOMO_HAND = "rlnTomoHand"
 VOLTAGE = "rlnVoltage"

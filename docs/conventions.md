@@ -39,15 +39,54 @@ warning.
 
 - `data_global`: `rlnTomoName`, `rlnTomoTiltSeriesStarFile`, `rlnTomoTiltSeriesPixelSize`.
   Optional: `rlnTomoSize{X,Y,Z}` (bin-1 pixels), `ppkTiltImageSize{X,Y}`.
-- `data_<TomoName>` in each tilt-series STAR file: `rlnMicrographName`, `rlnTomoYTilt`.
-  Optional: `rlnTomoXTilt`, `rlnTomoZRot`, `rlnTomo{X,Y}ShiftAngst`.
+- `data_<TomoName>` in each tilt-series STAR file: `rlnTomoYTilt`. Optional:
+  `rlnMicrographName`, `rlnTomoXTilt`, `rlnTomoZRot`, `rlnTomo{X,Y}ShiftAngst`.
+
+Like RELION 5 (`TomogramSet::loadTomogram`), both image layouts are supported:
+
+- **A (stack):** the global `rlnTomoTiltSeriesName` names a stack, e.g. `TS_01.st:mrc`. Tilt
+  `i` is its section `i`, in the row order of the tilt-series table. RELION gives this layout
+  precedence.
+- **B (one file per tilt):** each row's `rlnMicrographName` is a 2D image, as written by
+  RELION's motion correction.
+
+Tilts are identified, and picks matched, by `rlnMicrographName` when it is present.
+Otherwise the identifier is the section reference `N@stack` (1-based). Image references use
+RELION's syntax: `N@path` selects a section and a `:mrc` type suffix forces the MRC reader.
+When writing, `rlnTomoTiltSeriesName` is kept only if the tilt images are exactly the
+sections of one stack, in order. A stale stack name would otherwise take precedence over
+new per-tilt images.
+
+### Unstacked datasets (`parapick unstack`)
+
+`parapick unstack --tomograms tomograms.star -o OUT` writes:
+
+- `OUT/micrographs/<TS>_<NNN>.mrc`: one float32 MRC2014 image per tilt (1-based tilt order),
+  at native sampling. Stems are unique across tilt-series, so pickers that report images by
+  stem (Topaz) match unambiguously. The pixel size is not recorded in the headers (they say
+  1 Å/px). The pickers ignore it: crYOLO and Topaz read only the pixel data and shape, and
+  RELION and cryoSPARC take it from the user or the STAR optics table. ParaPick takes it from
+  the geometry.
+- `OUT/tomograms.star` and `OUT/tilt_series/<TS>.star`: the same geometry and metadata, with
+  `rlnMicrographName` pointing at the new files (layout B).
+
+Stacks are read section by section, as MRC2014 image stacks (space group 0, as IMOD writes
+them). Stacks flagged as volumes (space group 1) are read once, whole. Reading and writing go
+through vitrio, in batches of `--batch-size` images (bounding memory) arranged as a pipeline:
+the next batch is requested before the current one is written. The bundled image I/O
+(`parapick.formats.vitrio_images.VitrioImageIO`) is synchronous for now. An asynchronous
+`ImageIO` (e.g. on vitrio's `read_batch_async` / `write_batch_async`) can overlap the steps
+without changes to the workflow.
+
+Pick on `OUT/micrographs/` and pass `--tomograms OUT/tomograms.star` to `convert-picks` and
+`localize`.
 
 Paths are resolved as RELION does (relative to the project directory). ParaPick also tries
 the directory of the STAR file and its parents. The tilt-image size is looked up in this
 order:
 1. `--tilt-image-size`;
 2. the `ppkTiltImageSize{X,Y}` labels;
-3. the MRC header of the first tilt image (header only).
+3. the header of the first tilt image (header only).
 
 ### 2D picks: ParaPick picks STAR (`relion5` format, read and write)
 

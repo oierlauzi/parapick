@@ -1,4 +1,14 @@
-"""RELION 5 ``tomograms.star`` (+ per tilt-series STAR files) reader and writer."""
+"""RELION 5 ``tomograms.star`` (+ per tilt-series STAR files) reader and writer.
+
+RELION 5 knows two layouts for the tilt images (``TomogramSet::loadTomogram``):
+
+A. a stack named by ``rlnTomoTiltSeriesName`` (e.g. ``TS_01.st:mrc``), one section per row of
+   the tilt-series table, in order. This is the IMOD-import layout, and it takes precedence;
+B. one image per tilt in ``rlnMicrographName``, as written by RELION's motion correction.
+
+Tilts are identified by ``rlnMicrographName`` when present, else by ``N@stack``. Their pixels
+(``TiltSeries.images``) come from the stack in layout A.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from parapick.formats.base import TomogramsReadOptions
-from parapick.formats.mrc import read_image_size, strip_stack_index
+from parapick.formats.images import ImageReference, read_image_size
 from parapick.formats.relion5 import labels as L
 from parapick.formats.relion5.conventions import from_relion, to_relion
 from parapick.formats.star import (
@@ -40,9 +50,31 @@ def _column(frame: pd.DataFrame, label: str, default: float = 0.0) -> np.ndarray
     return np.full(len(frame), default)
 
 
+def _stack(row: pd.Series[Any]) -> ImageReference | None:
+    """The layout-A stack of a tilt-series, if any."""
+    value = row.get(L.TILT_SERIES_NAME)
+    if value is None or (isinstance(value, float) and np.isnan(value)) or not str(value):
+        return None
+    return ImageReference.parse(str(value))
+
+
+def _image_references(row: pd.Series[Any], tilts: pd.DataFrame, path: Path) -> tuple[str, ...]:
+    stack = _stack(row)
+    if stack is not None:
+        return tuple(
+            str(ImageReference(stack.path, i, stack.type_suffix)) for i in range(len(tilts))
+        )
+    if L.MICROGRAPH_NAME not in tilts.columns:
+        raise ValueError(
+            f"Tilt-series {row[L.TOMO_NAME]!r} in {path} has neither per-tilt "
+            f"{L.MICROGRAPH_NAME} nor a {L.TILT_SERIES_NAME} stack"
+        )
+    return tuple(str(m) for m in tilts[L.MICROGRAPH_NAME])
+
+
 def _image_size(
     row: pd.Series[Any],
-    tilts: pd.DataFrame,
+    first_image: str,
     anchor: Path,
     options: TomogramsReadOptions,
 ) -> tuple[int, int]:
@@ -50,7 +82,7 @@ def _image_size(
         return options.tilt_image_size
     if all(label in row.index and pd.notna(row[label]) for label in L.TILT_IMAGE_SIZE):
         return int(row[L.TILT_IMAGE_SIZE[0]]), int(row[L.TILT_IMAGE_SIZE[1]])
-    image = resolve_relative_path(strip_stack_index(str(tilts[L.MICROGRAPH_NAME].iloc[0])), anchor)
+    image = ImageReference.parse(first_image).resolved(anchor)
     try:
         return read_image_size(image)
     except (OSError, ValueError) as error:
@@ -77,11 +109,17 @@ def read_tomograms(path: Path, options: TomogramsReadOptions) -> TomogramSet:
         name = str(row[L.TOMO_NAME])
         ts_path = resolve_relative_path(str(row[L.TILT_SERIES_STAR]), path)
         ts_blocks = read_blocks(ts_path)
-        tilts = find_loop(ts_blocks, [L.MICROGRAPH_NAME, L.Z_ROT], preferred=name, path=ts_path)
-        require_columns(tilts, [L.MICROGRAPH_NAME, L.Y_TILT], ts_path)
+        tilts = find_loop(ts_blocks, [L.Y_TILT], preferred=name, path=ts_path)
+        require_columns(tilts, [L.Y_TILT], ts_path)
+        images = _image_references(row, tilts, ts_path)
+        tilt_ids = (
+            tuple(str(m) for m in tilts[L.MICROGRAPH_NAME])
+            if L.MICROGRAPH_NAME in tilts.columns
+            else images
+        )
 
         pixel_size = float(row[L.TILT_SERIES_PIXEL_SIZE])
-        image_size = _image_size(row, tilts, path, options)
+        image_size = _image_size(row, images[0], path, options)
         tomo_size_px = (
             row[list(L.TOMO_SIZE)].to_numpy(dtype=np.float64)
             if all(label in row.index for label in L.TOMO_SIZE)
@@ -100,7 +138,8 @@ def read_tomograms(path: Path, options: TomogramsReadOptions) -> TomogramSet:
         series.append(
             TiltSeries(
                 name=name,
-                tilt_ids=tuple(str(m) for m in tilts[L.MICROGRAPH_NAME]),
+                tilt_ids=tilt_ids,
+                images=images,
                 projections=projections,
                 translations=translations,
                 pixel_size=pixel_size,
@@ -118,10 +157,23 @@ def read_tomograms(path: Path, options: TomogramsReadOptions) -> TomogramSet:
     return TomogramSet(tuple(series), metadata={"relion5.path": path})
 
 
+def _common_stack(images: tuple[str, ...]) -> ImageReference | None:
+    """The stack holding all ``images`` as consecutive sections ``1..N``, if there is one."""
+    references = [ImageReference.parse(i) for i in images]
+    if not references:
+        return None
+    first = references[0]
+    if all(r.path == first.path and r.index == k for k, r in enumerate(references)):
+        return ImageReference(first.path, None, first.type_suffix)
+    return None
+
+
 def write_tomograms(tomograms: TomogramSet, path: Path) -> list[Path]:
     """Write a RELION 5 tomogram set: ``path`` plus ``<path dir>/tilt_series/<name>.star``.
 
-    Format-specific metadata read from RELION files (CTF, dose, ...) is preserved.
+    Format-specific metadata read from RELION files (CTF, dose, ...) is preserved. Tilt
+    identifiers become ``rlnMicrographName``. ``rlnTomoTiltSeriesName`` (layout A) is written
+    only when the tilt images are exactly the sections of one stack, in order.
     """
     written: list[Path] = []
     rows = []
@@ -163,6 +215,13 @@ def write_tomograms(tomograms: TomogramSet, path: Path) -> list[Path]:
         if tomo_size_px is not None:
             row.update(dict(zip(L.TOMO_SIZE, (int(v) for v in tomo_size_px), strict=True)))
         row[L.TILT_IMAGE_SIZE[0]], row[L.TILT_IMAGE_SIZE[1]] = ts.image_size
+        stack = _common_stack(ts.images)
+        if stack is not None:
+            row[L.TILT_SERIES_NAME] = str(stack)
+            row[L.FRAME_COUNT] = ts.n_tilts
+        else:
+            # Without this, a stale stack inherited from the input would take precedence in RELION.
+            row.pop(L.TILT_SERIES_NAME, None)
         rows.append(row)
 
     frame = pd.DataFrame(rows)
