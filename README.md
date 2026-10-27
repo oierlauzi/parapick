@@ -21,10 +21,6 @@ tilt:
 - **Input/output:** RELION 5 STAR files, so the results feed straight into subtomogram
   averaging.
 
-> F.P. de Isidro-Gómez\*, O.L. Zarrabeitia\*, J. Jimenez, C.O.S. Sorzano, J.M. Carazo,
-> J.L. Vilas. *ParaPick — Structure detection on Tilt-Series for a Tomogram-free Subtomogram
-> Averaging* (in preparation).
-
 ## Installation
 
 ```bash
