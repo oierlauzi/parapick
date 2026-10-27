@@ -1670,7 +1670,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.1" },
     { name = "scipy", specifier = ">=1.11" },
     { name = "starfile", specifier = ">=0.5.6" },
-    { name = "vitrio", specifier = ">=0.1.4" },
+    { name = "vitrio", specifier = ">=0.2.0" },
 ]
 provides-extras = ["cuda12", "cuda13"]
 
@@ -2206,18 +2206,18 @@ wheels = [
 
 [[package]]
 name = "vitrio"
-version = "0.1.4"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/31/18bdf2efea328e99b9289929ea9fe6d793c317ca7990eddf1bad2d48a54a/vitrio-0.1.4.tar.gz", hash = "sha256:b3adcb2bb15afa29d6b6074a61218b87ff5831e747a132d15b48de08c0f6d31f", size = 748531, upload-time = "2026-10-15T20:23:48.813Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/d0/8f3ff193d096e73b19c4f10cafcfc91dd460e3ec9a8c74c4c78d3d06c388/vitrio-0.2.0.tar.gz", hash = "sha256:a598b7f217f719a9dd07908f8ef875eda266788837e54c39e5011eaef37fcf39", size = 1360337, upload-time = "2026-10-27T14:53:18.878Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/ea/b43334a704952dc8419a17622512fb7f7b6dbc48a4e776f8ea891fb5af73/vitrio-0.1.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8295c43a1781d5ebe75646da5199ee32fdcbd85e31464e4964afd585707fe2bd", size = 806144, upload-time = "2026-10-15T20:23:33.258Z" },
-    { url = "https://files.pythonhosted.org/packages/d7/b2/bf5912f4ca4123bdf31345834020463f195f4eee8b7074dfb3a88930e707/vitrio-0.1.4-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:75b895e1cdd2867897a9db04a0952289b28601a5c74b53db1014b5cfd8be9785", size = 1005333, upload-time = "2026-10-15T20:23:34.626Z" },
-    { url = "https://files.pythonhosted.org/packages/66/d6/016fa3e8b9e76c17f89c1d180743ec6a763a71b9280dc7260b18c5771a1d/vitrio-0.1.4-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:0034e55868b337109ce8f8669b6f12be9b136f585e71232292ea1b207da20e86", size = 1662916, upload-time = "2026-10-15T20:23:36.038Z" },
-    { url = "https://files.pythonhosted.org/packages/3b/0c/cbe488ccb460028d581a75b66e76f5bed29891022c310aad308218fa77c0/vitrio-0.1.4-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5278ac8b33431ab3345867f89c7fd18903be9c33f945a46e0d4f31ccac2fc278", size = 1719189, upload-time = "2026-10-15T20:23:37.657Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/de/6caf54fc112a4fd33f7d0aa2a0ac9585a5d44451aaa1c83bf975c1ab4328/vitrio-0.1.4-cp311-cp311-win_amd64.whl", hash = "sha256:c42526de2736005ee4a86e08347e63bcf17526338b1a92b369a12b23a4132ab2", size = 1051641, upload-time = "2026-10-15T20:23:39.395Z" },
-    { url = "https://files.pythonhosted.org/packages/50/98/27d2b2d137316de9dee124b5d94489b9bb5ef03d088b0257a4294d6f45b9/vitrio-0.1.4-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:2a2381d276704255a5655d86f92d594023ca68e4169168005a2e088decc46821", size = 804303, upload-time = "2026-10-15T20:23:40.956Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/57/b65649e51a29b7a0f4a43f9ca3d336660f881357cf3dd6c1dad432f89075/vitrio-0.1.4-cp312-abi3-macosx_11_0_x86_64.whl", hash = "sha256:dcac7348faa55476d6ff245f4839418fb9dca80668de004c7fa60cf11458555e", size = 1003351, upload-time = "2026-10-15T20:23:42.314Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/7e/6d18b890cf454aa5983cee82200ac4368f4d076a141805cb393a0cc61ff2/vitrio-0.1.4-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:56e7776dadbbf04f450f837087efe4e5f1d5116f14fdc519a5d45f9d5970a039", size = 1657698, upload-time = "2026-10-15T20:23:43.75Z" },
-    { url = "https://files.pythonhosted.org/packages/7f/3e/010d02a32652bc04929fc8269b17ac65ad50071faa5224409c8ba2bf96a4/vitrio-0.1.4-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:cfa7228af5803d708522ec9eac2ba9a97a5b50422552cbd4398cfe8f835907ab", size = 1713647, upload-time = "2026-10-15T20:23:45.236Z" },
-    { url = "https://files.pythonhosted.org/packages/66/34/ebfd32bf4a67553739ebae901a56843044f3b9eb6742bc76e32b0a4acbc3/vitrio-0.1.4-cp312-abi3-win_amd64.whl", hash = "sha256:a89e6f2fa86916927438baaac1189ca914c3993001d424502fdb4dbadd737e75", size = 1050912, upload-time = "2026-10-15T20:23:47.13Z" },
+    { url = "https://files.pythonhosted.org/packages/15/80/b38d406a62bb9881fb4e501a4b7e35fa709410775e670110b0b19024bb3d/vitrio-0.2.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:da37473635003459ecc1106569a715846a447a5e209875c106aa997e9c36883e", size = 1287561, upload-time = "2026-10-27T14:53:02.553Z" },
+    { url = "https://files.pythonhosted.org/packages/57/af/3bd1ffefc357234382109fac9b91ceff5e28dc1b80a564efb04d4f558727/vitrio-0.2.0-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:ca0abc9cdf24698ba32196467fb93c22383323f7bd8c95a12aad527181269e9b", size = 1641273, upload-time = "2026-10-27T14:53:03.947Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/f1/289af84e834098234822a1308cb75c411b95054fbcfb3d4e9f2149523f91/vitrio-0.2.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:4953ca002ccc5ea089616531159a52197dccb373af40486e0545e13dcf2cdfd7", size = 2749459, upload-time = "2026-10-27T14:53:05.494Z" },
+    { url = "https://files.pythonhosted.org/packages/de/9b/cc72d916cc55d448597df4f2f57b1f98b30c208776352f3516786a74592f/vitrio-0.2.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:38a9930d01c3168f1a55d69499a18136c4f92eea996e6f479199fb2c8b1700ad", size = 2735891, upload-time = "2026-10-27T14:53:07.254Z" },
+    { url = "https://files.pythonhosted.org/packages/32/14/a6c80388435775a0529c6bd3b0a25417d3583d66aa89eb4760b12621dd25/vitrio-0.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:134f6630b766419ec9f1e11511b6964fac1b26af8d71f4a889e28437e7e245ee", size = 1537264, upload-time = "2026-10-27T14:53:08.785Z" },
+    { url = "https://files.pythonhosted.org/packages/22/3e/64332a89cf7ff95992d40415cc712f9f507d7a50d51cf75ff5fb14c04b24/vitrio-0.2.0-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:3b14ac51fcd5df556b890ad9e4a2f291b31b90f0f59de03eca9c3ace16bd2257", size = 1285590, upload-time = "2026-10-27T14:53:10.211Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/51/b1d6f3147f1e0240b3fcc570679546257e9cab6202f4bfa4f408ee4c05c0/vitrio-0.2.0-cp312-abi3-macosx_11_0_x86_64.whl", hash = "sha256:012b445736d49d6a2afe360dc47593074f6efc09e3a980e1de3c2f2449a415e3", size = 1639246, upload-time = "2026-10-27T14:53:11.518Z" },
+    { url = "https://files.pythonhosted.org/packages/03/55/686ca1e314c0667ee54892ab6796f46d840afc29c3257864eb9ad83d67a8/vitrio-0.2.0-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:a0aee4a77016a99209cc23d0100d0234512a557dddcddd2f840fcf02b2927162", size = 2744058, upload-time = "2026-10-27T14:53:13.285Z" },
+    { url = "https://files.pythonhosted.org/packages/42/37/b34487ebef3081d50f4a5d77071f2a2b1c2e3cdd7f741e9ad6cf28bd2f21/vitrio-0.2.0-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c164b9840e797ed095e99bc2f3fd449672f027c61eaee69ceaef21aef173757f", size = 2730592, upload-time = "2026-10-27T14:53:14.899Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/24/7f9caf7350e6735745130264bfceb07b8842e6f9cdca2750445af1cbe82a/vitrio-0.2.0-cp312-abi3-win_amd64.whl", hash = "sha256:6e4a2dfb309901a0891b99f9d0e228286f7effbbb3f4d39af17c1eb159a34ef6", size = 1536745, upload-time = "2026-10-27T14:53:17.191Z" },
 ]

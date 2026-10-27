@@ -108,7 +108,9 @@ def test_write_batch_is_readable_by_other_tools(tmp_path):
     images = STACK.astype(np.float32)
     paths = [tmp_path / "out" / f"{i}.mrc" for i in range(3)]
     pending = io.write_batch(images, paths)
-    assert pending.result() is None
+    assert pending.result() is None and pending.done()
+    for path in paths:
+        io.finish(path).result()
     for image, path in zip(images, paths, strict=True):
         with mrcfile.open(path) as mrc:  # what crYOLO uses
             assert mrc.header.nz == 1
@@ -122,8 +124,31 @@ def test_io_errors(tmp_path, image_stack):
         io.read_batch([ImageReference(str(tmp_path / "missing.mrc"))]).result()
     small = tmp_path / "small.mrc"
     io.write_batch(np.zeros((1, 2, 2), np.float32), [small]).result()
+    io.finish(small).result()
     with pytest.raises(ImageIOError, match="batch"):
         io.read_batch([ImageReference(str(image_stack), 0), ImageReference(str(small))]).result()
     with pytest.raises(ValueError, match="B paths"):
         io.write_batch(np.zeros((2, 2, 2), np.float32), [small]).result()
     assert io.read_batch([]).result().shape[0] == 0
+    with pytest.raises(ImageIOError, match="Cannot finish"):
+        io.finish(tmp_path / "never_written.mrc").result()
+    blocker = tmp_path / "file"
+    blocker.touch()
+    with pytest.raises(ImageIOError, match="Cannot write"):
+        io.write_batch(np.zeros((1, 2, 2), np.float32), [blocker / "x.mrc"]).result()
+
+
+def test_read_batch_mixes_files_and_stack_sections(tmp_path, image_stack):
+    """Whole files and stack sections can share a batch (vitrio reads them in separate runs)."""
+    io = VitrioImageIO(workers=2)
+    single = tmp_path / "single.mrc"
+    io.write_batch(STACK[1:2].astype(np.float32), [single]).result()
+    io.finish(single).result()
+    references = [
+        ImageReference(str(single)),
+        ImageReference(str(image_stack), 2),
+        ImageReference(str(image_stack), 0),
+        ImageReference(str(single)),
+    ]
+    batch = io.read_batch(references).result()
+    np.testing.assert_array_equal(batch, STACK[[1, 2, 0, 1]])

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `unstack` runs as an asynchronous pipeline on vitrio: several batches are read and written
+  at once, and each file is finished with `close_async` as soon as it is written. New
+  `--in-flight` option (`in_flight=` in Python, replacing `max_pending_writes=`); `--batch-size`
+  now defaults to 4. Files left incomplete by a failed run are deleted.
+- `VitrioImageIO` reads and writes asynchronously. The `ImageIO` interface gains `finish(path)`,
+  which a file written with `write_batch` needs before it is complete.
+- Stacks flagged as volumes are read section by section, no longer whole.
+- Requires vitrio ≥ 0.2.0.
+
 ### Fixed
 - Piping CLI output into a command that closes early (e.g. `parapick formats | head -1`) no
   longer logs `[Errno 32] Broken pipe`.
