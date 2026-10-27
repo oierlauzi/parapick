@@ -82,10 +82,9 @@ def _image_size(
         return options.tilt_image_size
     if all(label in row.index and pd.notna(row[label]) for label in L.TILT_IMAGE_SIZE):
         return int(row[L.TILT_IMAGE_SIZE[0]]), int(row[L.TILT_IMAGE_SIZE[1]])
-    reference = ImageReference.parse(first_image)
-    image = reference.resolve(anchor)
+    image = ImageReference.parse(first_image).resolved(anchor)
     try:
-        return read_image_size(reference, anchor)
+        return read_image_size(image)
     except (OSError, ValueError) as error:
         raise ValueError(
             f"Cannot determine the tilt-image size of {row[L.TOMO_NAME]!r}: failed to read the "

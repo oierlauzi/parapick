@@ -1617,13 +1617,13 @@ source = { editable = "." }
 dependencies = [
     { name = "jax", version = "0.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "jax", version = "0.12.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "mrcfile" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "starfile" },
+    { name = "vitrio" },
 ]
 
 [package.optional-dependencies]
@@ -1638,6 +1638,7 @@ cuda13 = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "mrcfile" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
@@ -1655,6 +1656,7 @@ lint = [
     { name = "scipy-stubs", version = "1.18.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 test = [
+    { name = "mrcfile" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
@@ -1664,16 +1666,17 @@ requires-dist = [
     { name = "jax", specifier = ">=0.4.30" },
     { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda12'", specifier = ">=0.4.30" },
     { name = "jax", extras = ["cuda13"], marker = "extra == 'cuda13'", specifier = ">=0.7" },
-    { name = "mrcfile", specifier = ">=1.5" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.1" },
     { name = "scipy", specifier = ">=1.11" },
     { name = "starfile", specifier = ">=0.5.6" },
+    { name = "vitrio", specifier = ">=0.1.4" },
 ]
 provides-extras = ["cuda12", "cuda13"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "mrcfile", specifier = ">=1.5" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pandas-stubs", specifier = ">=2.1" },
     { name = "pre-commit", specifier = ">=3.8" },
@@ -1689,6 +1692,7 @@ lint = [
     { name = "scipy-stubs", specifier = ">=1.14" },
 ]
 test = [
+    { name = "mrcfile", specifier = ">=1.5" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
 ]
@@ -2198,4 +2202,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/70/aa/bff50daee0488e16d611258a9b6c5a1d0c9e128f8ca424e9f4e1c0444ef2/virtualenv-21.14.13.tar.gz", hash = "sha256:de5307ba4b9a0001d9c8ea02832d38f63ca432880f416c1bface61c4323fd905", size = 5570301, upload-time = "2026-10-22T20:10:16.952Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bb/a9/c10d8a44a29fb94a18b43fdf11f38caca53ae7c9406f11a72b1cb8f624f1/virtualenv-21.14.13-py3-none-any.whl", hash = "sha256:5fbb04138a4861580b78ba9110d529a26bc48fcc93c8ec36bc0202eeed96a788", size = 5557094, upload-time = "2026-10-22T20:10:15.096Z" },
+]
+
+[[package]]
+name = "vitrio"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/31/18bdf2efea328e99b9289929ea9fe6d793c317ca7990eddf1bad2d48a54a/vitrio-0.1.4.tar.gz", hash = "sha256:b3adcb2bb15afa29d6b6074a61218b87ff5831e747a132d15b48de08c0f6d31f", size = 748531, upload-time = "2026-10-15T20:23:48.813Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/ea/b43334a704952dc8419a17622512fb7f7b6dbc48a4e776f8ea891fb5af73/vitrio-0.1.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8295c43a1781d5ebe75646da5199ee32fdcbd85e31464e4964afd585707fe2bd", size = 806144, upload-time = "2026-10-15T20:23:33.258Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/b2/bf5912f4ca4123bdf31345834020463f195f4eee8b7074dfb3a88930e707/vitrio-0.1.4-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:75b895e1cdd2867897a9db04a0952289b28601a5c74b53db1014b5cfd8be9785", size = 1005333, upload-time = "2026-10-15T20:23:34.626Z" },
+    { url = "https://files.pythonhosted.org/packages/66/d6/016fa3e8b9e76c17f89c1d180743ec6a763a71b9280dc7260b18c5771a1d/vitrio-0.1.4-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:0034e55868b337109ce8f8669b6f12be9b136f585e71232292ea1b207da20e86", size = 1662916, upload-time = "2026-10-15T20:23:36.038Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/0c/cbe488ccb460028d581a75b66e76f5bed29891022c310aad308218fa77c0/vitrio-0.1.4-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5278ac8b33431ab3345867f89c7fd18903be9c33f945a46e0d4f31ccac2fc278", size = 1719189, upload-time = "2026-10-15T20:23:37.657Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/de/6caf54fc112a4fd33f7d0aa2a0ac9585a5d44451aaa1c83bf975c1ab4328/vitrio-0.1.4-cp311-cp311-win_amd64.whl", hash = "sha256:c42526de2736005ee4a86e08347e63bcf17526338b1a92b369a12b23a4132ab2", size = 1051641, upload-time = "2026-10-15T20:23:39.395Z" },
+    { url = "https://files.pythonhosted.org/packages/50/98/27d2b2d137316de9dee124b5d94489b9bb5ef03d088b0257a4294d6f45b9/vitrio-0.1.4-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:2a2381d276704255a5655d86f92d594023ca68e4169168005a2e088decc46821", size = 804303, upload-time = "2026-10-15T20:23:40.956Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/57/b65649e51a29b7a0f4a43f9ca3d336660f881357cf3dd6c1dad432f89075/vitrio-0.1.4-cp312-abi3-macosx_11_0_x86_64.whl", hash = "sha256:dcac7348faa55476d6ff245f4839418fb9dca80668de004c7fa60cf11458555e", size = 1003351, upload-time = "2026-10-15T20:23:42.314Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/7e/6d18b890cf454aa5983cee82200ac4368f4d076a141805cb393a0cc61ff2/vitrio-0.1.4-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:56e7776dadbbf04f450f837087efe4e5f1d5116f14fdc519a5d45f9d5970a039", size = 1657698, upload-time = "2026-10-15T20:23:43.75Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/3e/010d02a32652bc04929fc8269b17ac65ad50071faa5224409c8ba2bf96a4/vitrio-0.1.4-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:cfa7228af5803d708522ec9eac2ba9a97a5b50422552cbd4398cfe8f835907ab", size = 1713647, upload-time = "2026-10-15T20:23:45.236Z" },
+    { url = "https://files.pythonhosted.org/packages/66/34/ebfd32bf4a67553739ebae901a56843044f3b9eb6742bc76e32b0a4acbc3/vitrio-0.1.4-cp312-abi3-win_amd64.whl", hash = "sha256:a89e6f2fa86916927438baaac1189ca914c3993001d424502fdb4dbadd737e75", size = 1050912, upload-time = "2026-10-15T20:23:47.13Z" },
 ]

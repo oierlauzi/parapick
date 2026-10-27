@@ -74,7 +74,7 @@ parapick convert-picks topaz_picks.txt --tomograms unstacked/tomograms.star -o p
 parapick localize --tomograms unstacked/tomograms.star --picks picks.star -o localize/
 ```
 
-The images keep their native pixel size, so pick coordinates need no conversion. The new
+The images keep their native sampling, so pick coordinates need no conversion. The new
 `tomograms.star` has the same geometry and RELION metadata, so it can replace the original
 downstream. `--link` symlinks tilts that are already single `.mrc` files instead of copying
 them.
@@ -123,7 +123,7 @@ The packages are layered and can be used on their own:
 - **Geometry:** RELION 5 `tomograms.star` and the per tilt-series STAR files
   (`rlnTomoXTilt`, `rlnTomoYTilt`, `rlnTomoZRot`, `rlnTomo{X,Y}ShiftAngst`). ParaPick uses
   exactly RELION's projection model, including its centring conventions. The tilt-image size
-  is read from the MRC header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
+  is read from the header of the first tilt image, from the `ppkTiltImageSize{X,Y}`
   labels, or from `--tilt-image-size`.
 - **Picks:** pixel coordinates on the tilt images, as written by single-particle pickers.
   The canonical ParaPick picks file is a single STAR table with `rlnTomoName`,

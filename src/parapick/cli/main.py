@@ -73,7 +73,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         configure_jax(args.device, args.x64)
         return command.run(args, registry)
-    except (CommandError, ValueError, KeyError, FileNotFoundError) as error:
+    except (CommandError, ValueError, KeyError, OSError) as error:
         if args.verbose > 0:
             logger.exception("parapick %s failed", command.name)
         else:

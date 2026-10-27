@@ -61,11 +61,22 @@ new per-tilt images.
 
 `parapick unstack --tomograms tomograms.star -o OUT` writes:
 
-- `OUT/micrographs/<TS>_<NNN>.mrc`: one float32 section per tilt (1-based tilt order) at the
-  native pixel size, with the voxel size set. Stems are unique across tilt-series, so pickers
-  that report images by stem (Topaz) match unambiguously.
+- `OUT/micrographs/<TS>_<NNN>.mrc`: one float32 MRC2014 image per tilt (1-based tilt order),
+  at native sampling. Stems are unique across tilt-series, so pickers that report images by
+  stem (Topaz) match unambiguously. The pixel size is not recorded in the headers (they say
+  1 Å/px). The pickers ignore it: crYOLO and Topaz read only the pixel data and shape, and
+  RELION and cryoSPARC take it from the user or the STAR optics table. ParaPick takes it from
+  the geometry.
 - `OUT/tomograms.star` and `OUT/tilt_series/<TS>.star`: the same geometry and metadata, with
   `rlnMicrographName` pointing at the new files (layout B).
+
+Stacks are read section by section, as MRC2014 image stacks (space group 0, as IMOD writes
+them). Stacks flagged as volumes (space group 1) are read once, whole. Reading and writing go
+through vitrio, in batches of `--batch-size` images (bounding memory) arranged as a pipeline:
+the next batch is requested before the current one is written. The bundled image I/O
+(`parapick.formats.vitrio_images.VitrioImageIO`) is synchronous for now. An asynchronous
+`ImageIO` (e.g. on vitrio's `read_batch_async` / `write_batch_async`) can overlap the steps
+without changes to the workflow.
 
 Pick on `OUT/micrographs/` and pass `--tomograms OUT/tomograms.star` to `convert-picks` and
 `localize`.
@@ -75,7 +86,7 @@ the directory of the STAR file and its parents. The tilt-image size is looked up
 order:
 1. `--tilt-image-size`;
 2. the `ppkTiltImageSize{X,Y}` labels;
-3. the MRC header of the first tilt image (header only).
+3. the header of the first tilt image (header only).
 
 ### 2D picks: ParaPick picks STAR (`relion5` format, read and write)
 

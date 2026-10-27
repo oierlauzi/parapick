@@ -1,18 +1,28 @@
-"""Image references and MRC input/output."""
+"""Image references, the ImageIO interface and its vitrio implementation."""
 
 from __future__ import annotations
+
+from concurrent.futures import Future
 
 import mrcfile
 import numpy as np
 import pytest
 
 from parapick.formats.images import (
+    ImageIO,
+    ImageIOError,
     ImageReference,
+    Pending,
+    completed,
+    default_image_io,
+    failed,
     read_image_size,
     read_section,
     strip_stack_index,
-    write_mrc,
 )
+from parapick.formats.vitrio_images import VitrioImageIO
+
+STACK = np.arange(3 * 4 * 5, dtype=np.int16).reshape(3, 4, 5)
 
 
 @pytest.mark.parametrize(
@@ -38,36 +48,82 @@ def test_image_reference_rejects_zero_index():
         ImageReference.parse("0@stack.mrcs")
 
 
-def test_mrc_detection():
-    assert ImageReference.parse("x.st").is_mrc()
-    assert ImageReference.parse("x.weird:mrc").is_mrc()
-    assert not ImageReference.parse("x.tif").is_mrc()
+def test_reference_resolution(tmp_path):
+    (tmp_path / "x.mrc").touch()
+    resolved = ImageReference.parse("2@x.mrc:mrc").resolved(tmp_path / "tomograms.star")
+    assert resolved.path == str(tmp_path / "x.mrc")
+    assert (resolved.index, resolved.type_suffix) == (1, "mrc")
+    assert ImageReference.parse("y.mrc").resolved(None).path == "y.mrc"
 
 
-def test_read_sections_from_stack_and_files(tmp_path):
-    stack = np.arange(3 * 4 * 5, dtype=np.float32).reshape(3, 4, 5)
-    with mrcfile.new(tmp_path / "stack.st") as mrc:
-        mrc.set_data(stack)
-    np.testing.assert_array_equal(read_section("2@stack.st", tmp_path / "anchor.star"), stack[1])
-    assert read_image_size("stack.st", tmp_path / "anchor.star") == (5, 4)
-    with pytest.raises(ValueError, match="3 sections"):
-        read_section(str(tmp_path / "stack.st"))
-    with pytest.raises(IndexError):
-        read_section(f"4@{tmp_path / 'stack.st'}")
-
-    single = write_mrc(tmp_path / "single.mrc", stack[2], pixel_size=1.5)
-    np.testing.assert_array_equal(read_section(str(single)), stack[2])
-    with mrcfile.open(single) as mrc:
-        assert mrc.header.nz == 1
-        assert float(mrc.voxel_size.x) == pytest.approx(1.5)
-
-    with mrcfile.new(tmp_path / "one.mrcs") as mrc:
-        mrc.set_data(stack[:1])
-    np.testing.assert_array_equal(read_section(str(tmp_path / "one.mrcs")), stack[0])
+def test_pending_helpers():
+    done: Future[int] = completed(3)
+    assert isinstance(done, Pending) and done.done() and done.result() == 3
+    with pytest.raises(KeyError):
+        failed(KeyError("x")).result()
 
 
-def test_unsupported_and_invalid(tmp_path):
-    with pytest.raises(ValueError, match="Unsupported image format"):
-        read_section(str(tmp_path / "x.tif"))
-    with pytest.raises(ValueError, match="2D"):
-        write_mrc(tmp_path / "x.mrc", np.zeros((2, 2, 2)), 1.0)
+def test_default_io_is_vitrio():
+    io = default_image_io()
+    assert isinstance(io, VitrioImageIO) and isinstance(io, ImageIO)
+    assert default_image_io() is io
+
+
+@pytest.fixture
+def image_stack(tmp_path):
+    """An MRC2014 image stack (space group 0), as IMOD writes tilt-series."""
+    path = tmp_path / "stack.st"
+    with mrcfile.new(path) as mrc:
+        mrc.set_data(STACK)
+        mrc.set_image_stack()
+    return path
+
+
+@pytest.fixture
+def volume_stack(tmp_path):
+    """The same sections flagged as a volume (space group 1), as some tools write them."""
+    path = tmp_path / "volume.mrc"
+    with mrcfile.new(path) as mrc:
+        mrc.set_data(STACK)
+    return path
+
+
+@pytest.mark.parametrize("stack", ["image_stack", "volume_stack"])
+def test_read_sections(request, tmp_path, stack):
+    path = request.getfixturevalue(stack)
+    anchor = tmp_path / "tomograms.star"
+    np.testing.assert_array_equal(read_section(f"2@{path.name}", anchor), STACK[1])
+    assert read_image_size(path.name, anchor) == (5, 4)
+    batch = VitrioImageIO().read_batch([ImageReference(str(path), i) for i in (2, 0)]).result()
+    assert batch.dtype == np.float32
+    np.testing.assert_array_equal(batch, STACK[[2, 0]])
+    with pytest.raises(ImageIOError, match="3 sections"):
+        read_section(str(path))
+    with pytest.raises(ImageIOError, match="out of range"):
+        read_section(f"4@{path}")
+
+
+def test_write_batch_is_readable_by_other_tools(tmp_path):
+    io = VitrioImageIO()
+    images = STACK.astype(np.float32)
+    paths = [tmp_path / "out" / f"{i}.mrc" for i in range(3)]
+    pending = io.write_batch(images, paths)
+    assert pending.result() is None
+    for image, path in zip(images, paths, strict=True):
+        with mrcfile.open(path) as mrc:  # what crYOLO uses
+            assert mrc.header.nz == 1
+            np.testing.assert_array_equal(mrc.data, image)
+        np.testing.assert_array_equal(read_section(str(path)), image)
+
+
+def test_io_errors(tmp_path, image_stack):
+    io = VitrioImageIO()
+    with pytest.raises(ImageIOError, match="Cannot read the header"):
+        io.read_batch([ImageReference(str(tmp_path / "missing.mrc"))]).result()
+    small = tmp_path / "small.mrc"
+    io.write_batch(np.zeros((1, 2, 2), np.float32), [small]).result()
+    with pytest.raises(ImageIOError, match="batch"):
+        io.read_batch([ImageReference(str(image_stack), 0), ImageReference(str(small))]).result()
+    with pytest.raises(ValueError, match="B paths"):
+        io.write_batch(np.zeros((2, 2, 2), np.float32), [small]).result()
+    assert io.read_batch([]).result().shape[0] == 0

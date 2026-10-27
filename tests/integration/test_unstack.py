@@ -33,9 +33,13 @@ def dataset():
     )  # fmt: skip
 
 
-@pytest.fixture
-def stacked(tmp_path, dataset) -> Path:
-    """A RELION 5 tomogram set in the IMOD-import layout: one stack per tilt-series."""
+@pytest.fixture(params=["image-stack", "volume-flagged"])
+def stacked(request, tmp_path, dataset) -> Path:
+    """A RELION 5 tomogram set in the IMOD-import layout: one stack per tilt-series.
+
+    Stacks are written both as MRC2014 image stacks (space group 0, as IMOD does) and flagged
+    as volumes (space group 1, as some tools do).
+    """
     root = tmp_path / "project"
     write_dataset(dataset, root)
     tomograms_path = root / "tomograms.star"
@@ -50,6 +54,8 @@ def stacked(tmp_path, dataset) -> Path:
         stack.parent.mkdir(exist_ok=True)
         with mrcfile.new(stack) as mrc:
             mrc.set_data(data)
+            if request.param == "image-stack":
+                mrc.set_image_stack()
         stacks.append(f"{stack}:mrc")
         ts_path = root / "tilt_series" / f"{ts.name}.star"
         tilts = starfile.read(ts_path).drop(columns=["rlnMicrographName"])
@@ -88,7 +94,6 @@ def test_unstack_writes_single_sections_and_geometry(tmp_path, stacked, dataset)
             with mrcfile.open(path) as mrc:
                 assert mrc.header.nz == 1  # what crYOLO requires
                 assert float(mrc.data.mean()) == _section_value(s, i)
-                assert float(mrc.voxel_size.x) == pytest.approx(ts.pixel_size)
 
     # The written geometry is identical and drops the stack (layout B), so RELION reads the
     # per-tilt images.

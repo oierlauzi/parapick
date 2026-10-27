@@ -41,6 +41,13 @@ class UnstackCommand:
         parser.add_argument(
             "--overwrite", action="store_true", help="Replace existing output images."
         )
+        parser.add_argument(
+            "--batch-size",
+            type=int,
+            default=8,
+            metavar="N",
+            help="Images read and written per batch; bounds memory use (default: 8).",
+        )
 
     def run(self, args: argparse.Namespace, registry: FormatRegistry) -> int:
         """Run."""
@@ -52,6 +59,7 @@ class UnstackCommand:
             read_options=read_options_from(args),
             link=args.link,
             overwrite=args.overwrite,
+            batch_size=args.batch_size,
             registry=registry,
         )
         return 0

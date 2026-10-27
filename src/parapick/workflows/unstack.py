@@ -1,5 +1,8 @@
 """Write every tilt image as its own 2D MRC file, for single-particle pickers.
 
+The pixel size is not recorded in the MRC headers: the pickers read only the image data and
+shape, and ParaPick takes the pixel size from the geometry.
+
 Most SPA pickers expect one micrograph per file: crYOLO rejects MRC files with more than one
 section, and Topaz in 2D mode treats each file as one micrograph keyed by its stem. Tilt-series
 are commonly stored as one stack per tilt-series. :func:`unstack` writes one ``.mrc`` per tilt
@@ -11,11 +14,14 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from collections import deque
+from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 from parapick.formats import AUTO, FormatRegistry, TomogramsReadOptions, default_registry
-from parapick.formats.images import ImageReference, read_section, write_mrc
-from parapick.tomography import TiltSeries, TomogramSet
+from parapick.formats.images import ImageIO, ImageReference, Pending, default_image_io
+from parapick.tomography import TomogramSet
 
 __all__ = ["MICROGRAPHS_DIRECTORY", "run_unstack", "unstack", "unstacked_name"]
 
@@ -33,34 +39,49 @@ def _single_mrc_file(reference: ImageReference) -> bool:
     return reference.index is None and Path(reference.path).suffix.lower() == ".mrc"
 
 
-def _unstack_tilt_series(
-    ts: TiltSeries,
-    directory: Path,
-    anchor: Path | None,
-    *,
-    link: bool,
-    overwrite: bool,
-) -> tuple[TiltSeries, list[Path]]:
-    names: list[str] = []
+@dataclass(frozen=True)
+class _Batch:
+    """Images of one tilt-series to copy together (all of the same size)."""
+
+    sources: tuple[ImageReference, ...]
+    targets: tuple[Path, ...]
+
+
+def _batches(copies: list[tuple[ImageReference, Path]], batch_size: int) -> Iterator[_Batch]:
+    for start in range(0, len(copies), batch_size):
+        chunk = copies[start : start + batch_size]
+        yield _Batch(tuple(s for s, _ in chunk), tuple(t for _, t in chunk))
+
+
+def _replace(target: Path) -> None:
+    """Remove an existing output (never write through a symlink into its source)."""
+    if target.exists() or target.is_symlink():
+        target.unlink()
+
+
+def _copy(batches: list[_Batch], io: ImageIO, max_pending_writes: int) -> list[Path]:
+    """Read and write batches as a pipeline.
+
+    The read of batch ``k + 1`` is issued before batch ``k`` is written, and at most
+    ``max_pending_writes`` writes are left in flight. With a synchronous :class:`ImageIO` this
+    runs in order. With an asynchronous one, reads, writes and the next batch overlap.
+    """
     written: list[Path] = []
-    for i, image in enumerate(ts.images):
-        target = directory / unstacked_name(ts.name, i)
-        names.append(str(target))
-        if (target.exists() or target.is_symlink()) and not overwrite:
-            logger.debug("Keeping existing %s", target)
-            continue
-        reference = ImageReference.parse(image)
-        if link and _single_mrc_file(reference):
-            source = reference.resolve(anchor).resolve()
-            if target.exists() or target.is_symlink():
-                target.unlink()
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.symlink_to(source)
-        else:
-            write_mrc(target, read_section(reference, anchor), ts.pixel_size, overwrite=True)
-        written.append(target)
-    unstacked = dataclasses.replace(ts, tilt_ids=tuple(names), images=tuple(names))
-    return unstacked, written
+    writes: deque[Pending[None]] = deque()
+    upcoming = io.read_batch(batches[0].sources) if batches else None
+    for k, batch in enumerate(batches):
+        assert upcoming is not None
+        images = upcoming.result()
+        upcoming = io.read_batch(batches[k + 1].sources) if k + 1 < len(batches) else None
+        for target in batch.targets:
+            _replace(target)
+        writes.append(io.write_batch(images, batch.targets))
+        written += batch.targets
+        while len(writes) > max_pending_writes:
+            writes.popleft().result()
+    while writes:
+        writes.popleft().result()
+    return written
 
 
 def unstack(
@@ -70,6 +91,9 @@ def unstack(
     anchor: Path | None = None,
     link: bool = False,
     overwrite: bool = False,
+    io: ImageIO | None = None,
+    batch_size: int = 8,
+    max_pending_writes: int = 2,
 ) -> tuple[TomogramSet, list[Path]]:
     """Write one 2D MRC file per tilt into ``output_directory/micrographs``.
 
@@ -87,6 +111,13 @@ def unstack(
         Symlink tilts that already are single 2D ``.mrc`` files instead of copying them.
     overwrite
         Replace existing output files (by default they are kept, so runs can resume).
+    io
+        Image reader/writer (default: :func:`~parapick.formats.images.default_image_io`).
+    batch_size
+        Images per read/write batch. It bounds memory: about
+        ``(2 + max_pending_writes) × batch_size`` images are held at once.
+    max_pending_writes
+        Writes allowed in flight while the next batches are read (asynchronous ``io`` only).
 
     Returns
     -------
@@ -94,15 +125,32 @@ def unstack(
         The same geometry with tilt identifiers and images pointing at the new files, and the
         image files created in this call.
     """
+    if batch_size < 1 or max_pending_writes < 0:
+        raise ValueError("batch_size must be >= 1 and max_pending_writes >= 0")
+    io = io or default_image_io()
     directory = output_directory / MICROGRAPHS_DIRECTORY
-    series, written = [], []
+    series, batches, written = [], [], []
     for ts in tomograms:
-        unstacked, files = _unstack_tilt_series(
-            ts, directory, anchor, link=link, overwrite=overwrite
-        )
-        series.append(unstacked)
-        written += files
+        names: list[str] = []
+        copies: list[tuple[ImageReference, Path]] = []
+        for i, image in enumerate(ts.images):
+            target = directory / unstacked_name(ts.name, i)
+            names.append(str(target))
+            if (target.exists() or target.is_symlink()) and not overwrite:
+                logger.debug("Keeping existing %s", target)
+                continue
+            source = ImageReference.parse(image).resolved(anchor)
+            if link and _single_mrc_file(source):
+                _replace(target)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(Path(source.path).resolve())
+                written.append(target)
+            else:
+                copies.append((source, target))
+        batches += list(_batches(copies, batch_size))
+        series.append(dataclasses.replace(ts, tilt_ids=tuple(names), images=tuple(names)))
         logger.info("%s: %d tilt images -> %s", ts.name, ts.n_tilts, directory)
+    written += _copy(batches, io, max_pending_writes)
     return TomogramSet(tuple(series), tomograms.metadata), written
 
 
@@ -115,6 +163,8 @@ def run_unstack(
     read_options: TomogramsReadOptions | None = None,
     link: bool = False,
     overwrite: bool = False,
+    io: ImageIO | None = None,
+    batch_size: int = 8,
     registry: FormatRegistry | None = None,
 ) -> tuple[TomogramSet, list[Path]]:
     """File-based :func:`unstack`: also writes the new geometry (e.g. ``tomograms.star``).
@@ -126,7 +176,13 @@ def run_unstack(
     reader = registry.tomograms_reader(tomograms_format, tomograms_path)
     tomograms = reader.read_tomograms(tomograms_path, read_options or TomogramsReadOptions())
     unstacked, images = unstack(
-        tomograms, output_directory, anchor=tomograms_path, link=link, overwrite=overwrite
+        tomograms,
+        output_directory,
+        anchor=tomograms_path,
+        link=link,
+        overwrite=overwrite,
+        io=io,
+        batch_size=batch_size,
     )
     writer = registry.tomograms_writer(output_format)
     geometry_path = output_directory / f"tomograms{writer.suffixes[0] if writer.suffixes else ''}"
