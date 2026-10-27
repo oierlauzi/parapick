@@ -1,0 +1,172 @@
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "parapick"
+dynamic = ["version"]
+description = "Tomogram-free particle localization: recover 3D particle coordinates from 2D picks on cryo-ET tilt-series."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Oier Lauzirika Zarrabeitia" },
+    { name = "Federico P. de Isidro-Gómez" },
+]
+requires-python = ">=3.11"
+keywords = ["cryo-ET", "cryo-EM", "tomography", "particle picking", "tilt-series", "JAX", "RELION"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "jax>=0.4.30",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "starfile>=0.5.6",
+    "mrcfile>=1.5",
+]
+
+[project.optional-dependencies]
+cuda12 = ["jax[cuda12]>=0.4.30"]
+cuda13 = ["jax[cuda13]>=0.7"]
+
+[project.scripts]
+parapick = "parapick.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/oierlauzi/parapick"
+Issues = "https://github.com/oierlauzi/parapick/issues"
+Source = "https://github.com/oierlauzi/parapick"
+
+[dependency-groups]
+test = [
+    "pytest>=8",
+    "pytest-cov>=5",
+]
+lint = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pandas-stubs>=2.1",
+    "scipy-stubs>=1.14",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    "pre-commit>=3.8",
+]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/parapick/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/.github", "/docs"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/parapick"]
+
+# --------------------------------------------------------------------------- #
+# Tooling
+# --------------------------------------------------------------------------- #
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["src/parapick/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "N",        # pep8-naming
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "RUF",      # ruff-specific
+    "PTH",      # use pathlib
+    "NPY",      # numpy-specific
+    "PL",       # pylint subset
+    "D",        # pydocstyle
+    "PT",       # pytest style
+    "TID",      # tidy imports
+    "TC",       # type-checking imports
+]
+ignore = [
+    "PLR0913",  # scientific functions legitimately take many parameters
+    "PLR2004",  # magic values in comparisons
+    "PLR0915",
+    "PLR0912",
+    "D105", "D107", "D401",
+    "N803", "N806",  # maths-style names (P, K, ...)
+    "RUF001", "RUF002", "RUF003",  # greek letters (σ, π, μ) follow the paper's notation
+    "N812",     # `labels as L` reads like the paper's tables
+    "PLC0415",  # deliberate lazy imports (JAX start-up, plug-in registration)
+    "PLR0917",  # positional arguments mirror the maths
+    "TC001", "TC002", "TC003",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["parapick"]
+known-local-folder = ["helpers"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "PLR", "N", "S101", "PT018"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["starfile.*", "mrcfile.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Parts of JAX's public API (finfo, config.update, block_until_ready) are untyped.
+module = ["parapick.gmm.*", "parapick.cli.base"]
+disallow_untyped_calls = false
+warn_return_any = false
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+markers = ["slow: end-to-end tests that fit full simulated datasets"]
+filterwarnings = [
+    "error::DeprecationWarning:parapick.*",
+    "ignore:Setting the dtype on a NumPy array:DeprecationWarning",  # inside mrcfile
+]
+
+[tool.coverage.run]
+source = ["parapick"]
+branch = true
+omit = ["*/_version.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\."]
