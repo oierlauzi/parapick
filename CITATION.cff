@@ -3,6 +3,8 @@ message: "If you use ParaPick, please cite it as below."
 title: "ParaPick: Structure detection on Tilt-Series for a Tomogram-free Subtomogram Averaging"
 type: software
 license: MIT
+version: "0.1.0"
+date-released: "2026-10-27"
 repository-code: "https://github.com/oierlauzi/parapick"
 authors:
   - family-names: "de Isidro-Gómez"

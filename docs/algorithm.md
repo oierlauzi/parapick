@@ -1,7 +1,7 @@
 # Algorithm
 
 ParaPick fits a 3D Gaussian mixture model (GMM) to 2D detections spread over the tilt
-images, by expectation-maximisation (EM). This page maps the equations of the paper (§2)
+images, by expectation-maximisation (EM). This page maps the Methods of the paper
 to the code. It then describes the implementation choices and the robustness components.
 
 ## Notation
@@ -96,4 +96,4 @@ can be switched off for ablations. Switching off all of them leaves the plain EM
 picker has per-image recall `R`, a true particle has an expected score of about `R`.
 Spurious components collect only occasional detections. Thresholding the score at `K/N`
 corresponds to requiring `K` supporting views. Under a binomial model, the resulting 3D
-recall is `P(X ≥ K)` with `X ~ Binom(N, R)` (paper, eq. 15).
+recall is `P(X ≥ K)` with `X ~ Binom(N, R)` (paper, recall model).

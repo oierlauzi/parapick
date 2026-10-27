@@ -141,7 +141,7 @@ class LocalizeCommand:
         background.add_argument(
             "--no-background",
             action="store_true",
-            help="Disable the background term (the paper's original model).",
+            help="Disable the background term (for ablations).",
         )
         model.add_argument(
             "--merge-distance",
@@ -161,7 +161,7 @@ class LocalizeCommand:
             choices=sorted(INITIALIZERS),
             default="lifted",
             help="Initialisation: 'lifted' back-projects the picks of the least tilted image at "
-            "random depths; 'uniform' is the paper's uniform start (default: lifted).",
+            "random depths; 'uniform' draws them uniformly in the box (default: lifted).",
         )
 
         optimisation = parser.add_argument_group("optimisation")

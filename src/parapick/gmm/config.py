@@ -23,7 +23,7 @@ class LocalizeConfig:
     overcomplete_factor
         Factor used when ``n_components`` is ``None``.
     alpha
-        Concentration of the symmetric Dirichlet prior on the weights (eq. 11). ``alpha < 1``
+        Concentration of the symmetric Dirichlet prior on the weights. ``alpha < 1``
         promotes sparsity: components with fewer than ``1 - alpha`` effective detections are
         pruned.
     init_sigma
@@ -39,18 +39,17 @@ class LocalizeConfig:
         Convergence threshold on the mean displacement of the components between iterations.
         Convergence also requires that no component was pruned in that iteration.
     sinkhorn_iterations
-        Number of alternating KL projections in the capped Sinkhorn E-step (eqs. 6–7).
+        Number of alternating KL projections (row, column) in the capped Sinkhorn E-step.
     regularization
-        Relative Tikhonov term ``ε`` of the mean update (eq. 8), scaled by ``trace(A_k) / 3``.
+        Relative Tikhonov term ``ε`` of the mean update, scaled by ``trace(A_k) / 3``.
     box
         ``(X, Y, Z)`` size of the initialisation box. If ``None``, it is taken from the
         tilt-series geometry.
     background_fraction
         Initial weight ``π_0`` of a uniform background component that absorbs false-positive
-        picks. It is re-estimated during the fit. This extends the paper's model: without it,
-        every false positive must be explained by some component, which inflates ``σ_i`` and
-        creates spurious particles. ``None`` disables it and reproduces the paper's model
-        exactly.
+        picks. It is re-estimated during the fit. Without it, every false positive must be
+        explained by some component, which inflates ``σ_i`` and creates spurious particles.
+        ``None`` disables it (for ablations).
     merge_distance
         After the fit, merge components closer than this distance. They are duplicates of
         one particle that took its detections on different tilts. ``None`` uses five times
@@ -59,7 +58,7 @@ class LocalizeConfig:
     annealing
         Deterministic annealing: the per-tilt variances cannot fall below a floor that starts
         at ``σ⁽⁰⁾²`` and is multiplied by ``annealing²`` every iteration. This avoids
-        components freezing in poor positions early on. ``0`` disables it (paper model).
+        components freezing in poor positions early on. ``0`` disables it.
     """
 
     n_components: int | None = None

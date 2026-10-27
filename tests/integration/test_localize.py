@@ -25,7 +25,8 @@ def test_localize_noisy_picks(small_dataset):
     assert 0 < report["tilt_series"][0]["background_fraction"] < 1
 
 
-def test_paper_model_on_clean_picks():
+def test_plain_em_on_clean_picks():
+    """All robustness components disabled (ablation): clean picks are still recovered."""
     dataset = pp.simulate(
         pp.SimulationConfig(n_tilt_series=1, n_particles=20, recall=0.8, false_positives=0, seed=2)
     )

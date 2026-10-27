@@ -42,7 +42,7 @@ class Initializer(Protocol):
 
 
 class UniformBoxInitializer:
-    """Uniformly distributed centres in the box, as in the paper."""
+    """Uniformly distributed centres in the box."""
 
     name = "uniform"
 

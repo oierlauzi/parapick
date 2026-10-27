@@ -218,12 +218,12 @@ def test_fitter_background_absorbs_false_positives(rng):
     assert np.median(fit.sigmas) < 6.0
     assert (fit.scores > 0.4).sum() == len(truth)
 
-    paper_config = LocalizeConfig(background_fraction=None, annealing=0.0, merge_distance=0.0)
-    paper = EMFitter(paper_config, initializer=UniformBoxInitializer()).fit(
+    plain_config = LocalizeConfig(background_fraction=None, annealing=0.0, merge_distance=0.0)
+    plain = EMFitter(plain_config, initializer=UniformBoxInitializer()).fit(
         detections, projections, (2000.0, 2000.0, 400.0), seed=0
     )
-    assert paper.background_fraction == 0.0
-    assert np.median(paper.sigmas) > np.median(fit.sigmas)
+    assert plain.background_fraction == 0.0
+    assert np.median(plain.sigmas) > np.median(fit.sigmas)
 
 
 def test_fitter_handles_empty_input():
