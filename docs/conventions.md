@@ -150,11 +150,25 @@ cryoSPARC `.cs` files.
 ### 3D particles (`relion5`, read and write)
 
 - `particles.star` (`data_particles`): `rlnTomoName`, `rlnCenteredCoordinate{X,Y,Z}Angst`,
-  `rlnAutopickFigureOfMerit` (score `s_k`) and `ppkEffectiveCount` (`n_k`).
+  `rlnAutopickFigureOfMerit` (score `s_k`), `ppkEffectiveCount` (`n_k`) and `ppkParticleId`.
 - `optimisation_set.star`: `rlnTomoParticlesFile` and `rlnTomoTomogramsFile`. It can be
   passed directly to RELION 5 subtomogram extraction.
 - Legacy `rlnCoordinate{X,Y,Z}` (bin-1 pixels from the corner) are read when the geometry is
   provided.
+
+### Pick assignments (`localize --write-assignments`, write only)
+
+`assignments.star` (`data_assignments`) lists, for each selected particle, the 2D picks it
+explains: at most one per tilt, whose responsibility after a final E-step with the merged
+particles reaches `--assignment-threshold`. Columns:
+
+- `rlnTomoName`, `ppkParticleId`: the particle (as in `particles.star`).
+- `rlnMicrographName`: canonical tilt id of the geometry.
+- `rlnCoordinateX/Y` (+ `rlnMicrographPixelSize`): the pick as in the input file;
+  `ppkPickIndex` is its 0-based row in the input picks.
+- `ppkResponsibility`: posterior probability of the assignment.
+- `ppkResidualXAngst`, `ppkResidualYAngst`: pick minus projected particle centre, in the
+  image frame used by the fit (after `--flip-y`), in Å.
 
 ### ParaPick-specific labels
 
@@ -165,6 +179,10 @@ along:
 |---|---|---|
 | `ppkTiltImageSizeX`, `ppkTiltImageSizeY` | `tomograms.star` | tilt-image size (avoids reading image headers) |
 | `ppkEffectiveCount` | `particles.star` | effective number of supporting detections `n_k` |
+| `ppkParticleId` | `particles.star`, `assignments.star` | particle id within its tilt-series (1-based) |
+| `ppkPickIndex` | `assignments.star` | 0-based row of the pick in the input picks |
+| `ppkResponsibility` | `assignments.star` | posterior probability of the assignment |
+| `ppkResidualXAngst`, `ppkResidualYAngst` | `assignments.star` | pick minus projection (Å) |
 
 Per-tilt diagnostics (`σ_i`, number of picks), iterations, convergence, background fraction
 and log-likelihood are written to `localize_report.json`.

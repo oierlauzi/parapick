@@ -64,6 +64,9 @@ def read_particles(path: Path, tomograms: TomogramSet | None = None) -> Particle
         support=table[L.EFFECTIVE_COUNT].to_numpy(dtype=np.float64)
         if L.EFFECTIVE_COUNT in table.columns
         else None,
+        ids=table[L.PARTICLE_ID].to_numpy(dtype=np.intp)
+        if L.PARTICLE_ID in table.columns
+        else None,
     )
 
 
@@ -80,6 +83,8 @@ def write_particles(particles: Particles, path: Path, context: WriteContext) -> 
         columns[L.AUTOPICK_FOM] = particles.scores
     if particles.support is not None:
         columns[L.EFFECTIVE_COUNT] = particles.support
+    if particles.ids is not None:
+        columns[L.PARTICLE_ID] = particles.ids
     written = [write_blocks({L.PARTICLES_BLOCK: pd.DataFrame(columns)}, path)]
 
     if context.tomograms_path is not None:

@@ -207,6 +207,7 @@ def bind_picks(
             tilt_indices=tilt_of_pick[rows],
             coordinates=coordinates * scale,
             scores=None if picks.scores is None else picks.scores[rows],
+            rows=rows,
         )
     return bound, report
 
