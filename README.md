@@ -28,11 +28,11 @@ The method is a Gaussian mixture fitted by expectation-maximisation.
 
 ## Features
 
-- **Any 2D picker:** reads picks from RELION, crYOLO, Topaz, cryoSPARC, EMAN2 and
-  Xmipp/Scipion. `unstack` splits tilt-series stacks into one micrograph per tilt for pickers
-  that need it.
-- **RELION 5 in and out:** the geometry comes from `tomograms.star`, and the particles feed
-  straight into subtomogram averaging.
+- **Input:** the tilt-series geometry in RELION 5 format (`tomograms.star`), and 2D picks in
+  the formats of RELION, crYOLO, Topaz, cryoSPARC, EMAN2 or Xmipp/Scipion.
+- **Output:** RELION 5 particles, which feed straight into subtomogram averaging.
+- **Stacked tilt-series:** `unstack` splits each stack into one micrograph per tilt, for
+  pickers that need one image per file.
 - **Many tilt-series per run,** on CPU or GPU (JAX).
 - **Command line and Python API,** with file formats as plug-ins.
 
