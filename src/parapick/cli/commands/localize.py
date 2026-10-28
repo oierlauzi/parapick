@@ -9,6 +9,7 @@ from parapick.cli.base import add_tomograms_arguments, format_argument, read_opt
 from parapick.formats import FormatRegistry, Role
 from parapick.gmm import INITIALIZERS, EMFitter, LocalizeConfig
 from parapick.workflows import Selection, run_localize
+from parapick.workflows.localize import DEFAULT_ASSIGNMENT_THRESHOLD
 
 _DEFAULTS = LocalizeConfig()
 
@@ -78,6 +79,20 @@ class LocalizeCommand:
             registry,
             default="relion5",
             allow_auto=False,
+        )
+        io.add_argument(
+            "--write-assignments",
+            action="store_true",
+            help="Also write assignments.star: the picks explained by each particle "
+            "(at most one per tilt), with responsibilities and residuals.",
+        )
+        io.add_argument(
+            "--assignment-threshold",
+            type=float,
+            default=DEFAULT_ASSIGNMENT_THRESHOLD,
+            metavar="P",
+            help="Minimum responsibility for a pick to be assigned to a particle "
+            f"(default: {DEFAULT_ASSIGNMENT_THRESHOLD}).",
         )
         io.add_argument(
             "--tilt-series",
@@ -228,5 +243,7 @@ class LocalizeCommand:
             selection=selection_from(args),
             seed=args.seed,
             registry=registry,
+            write_assignments=args.write_assignments,
+            assignment_threshold=args.assignment_threshold,
         )
         return 0

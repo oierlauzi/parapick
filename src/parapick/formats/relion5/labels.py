@@ -51,9 +51,18 @@ TILT_IMAGE_SIZE = ("ppkTiltImageSizeX", "ppkTiltImageSizeY")
 """Tilt-image dimensions in native pixels (avoids opening image headers)."""
 EFFECTIVE_COUNT = "ppkEffectiveCount"
 """Effective number of supporting detections ``n_k``."""
+PARTICLE_ID = "ppkParticleId"
+"""Identifier of a particle within its tilt-series (1-based, stable under selection)."""
+PICK_INDEX = "ppkPickIndex"
+"""Row of a pick in the input picks table (0-based, -1 if unknown)."""
+RESPONSIBILITY = "ppkResponsibility"
+"""Posterior probability that a pick belongs to its assigned particle."""
+RESIDUAL_ANGST = ("ppkResidualXAngst", "ppkResidualYAngst")
+"""Pick minus projected particle centre, in the image frame (Å)."""
 
 # -- block names -------------------------------------------------------------------------- #
 GLOBAL_BLOCK = "global"
 PICKS_BLOCK = "picks"
 PARTICLES_BLOCK = "particles"
+ASSIGNMENTS_BLOCK = "assignments"
 OPTIMISATION_SET_BLOCK = "optimisation_set"

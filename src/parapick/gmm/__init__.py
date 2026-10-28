@@ -1,5 +1,6 @@
 """Projected 3D Gaussian-mixture fitting with EM, implemented in JAX."""
 
+from parapick.gmm.assignment import TiltAssignment, assign_detections
 from parapick.gmm.config import LocalizeConfig
 from parapick.gmm.fitter import EMFitter, Fitter, GMMFit
 from parapick.gmm.initialization import (
@@ -18,6 +19,8 @@ __all__ = [
     "Initializer",
     "LiftedPicksInitializer",
     "LocalizeConfig",
+    "TiltAssignment",
     "UniformBoxInitializer",
+    "assign_detections",
     "merge_duplicates",
 ]

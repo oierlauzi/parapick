@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Pick assignments: `localize --write-assignments` writes `assignments.star`, which lists the
+  2D picks each particle explains (at most one per tilt), with their input row
+  (`ppkPickIndex`), responsibility and residual. `--assignment-threshold` (default 0.5) sets
+  the minimum responsibility. In Python: `LocalizationResult.assignments(selection)` and
+  `parapick.gmm.assign_detections`.
+- Particles carry a stable per-tilt-series id (`Particles.ids`, `ppkParticleId` in
+  `particles.star`) that selection does not renumber.
+
 ### Changed
 - `unstack` runs as an asynchronous pipeline on vitrio: several batches are read and written
   at once, and each file is finished with `close_async` as soon as it is written. New
