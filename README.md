@@ -9,17 +9,31 @@ pick with any single-particle picker (Topaz, crYOLO, RELION, ...). ParaPick fuse
 from all tilts into a consistent set of 3D positions, with a confidence score for each one.
 No tomogram needs to be reconstructed.
 
-The 3D positions are the centres of a Gaussian mixture. It is fitted with
-expectation-maximisation to all the 2D detections, through the projection geometry of every
-tilt:
+## How it works
 
-- **E-step:** a capped Sinkhorn soft assignment. Each detection is fully explained, and each
-  component takes at most one detection per tilt.
-- **Number of particles:** a sparse Dirichlet prior prunes the deliberately over-complete set
-  of components, so the number of particles is estimated automatically.
-- **Implementation:** JAX, running on CPU or GPU.
-- **Input/output:** RELION 5 STAR files, so the results feed straight into subtomogram
-  averaging.
+Each particle is a point in 3D whose projection should show up as a pick on every tilt image.
+ParaPick starts with more candidates than there are particles, and repeats two steps:
+
+1. **Match:** each pick is matched to the candidates that project close to it. A candidate
+   takes at most one pick per tilt, and picks that match no candidate are set aside as false
+   positives.
+2. **Move:** each candidate moves to the 3D position that best agrees with its picks.
+
+Candidates that too few picks support are dropped, so the number of particles is found
+automatically. A particle's score is the fraction of tilts whose picks support it.
+
+The method is a Gaussian mixture fitted by expectation-maximisation.
+[`docs/algorithm.md`](docs/algorithm.md) gives the details and how they map to the code.
+
+## Features
+
+- **Any 2D picker:** reads picks from RELION, crYOLO, Topaz, cryoSPARC, EMAN2 and
+  Xmipp/Scipion. `unstack` splits tilt-series stacks into one micrograph per tilt for pickers
+  that need it.
+- **RELION 5 in and out:** the geometry comes from `tomograms.star`, and the particles feed
+  straight into subtomogram averaging.
+- **Many tilt-series per run,** on CPU or GPU (JAX).
+- **Command line and Python API,** with file formats as plug-ins.
 
 ## Installation
 
