@@ -11,16 +11,17 @@ No tomogram needs to be reconstructed.
 
 ## How it works
 
-Each particle is a point in 3D whose projection should show up as a pick on every tilt image.
-ParaPick starts with more candidates than there are particles, and repeats two steps:
+ParaPick builds a 3D model of the particle positions that has to explain the 2D picks of
+every tilt: projected through the tilt-series geometry, each particle should land on a pick in
+every tilt image. The model is fitted by repeating two steps:
 
-1. **Match:** each pick is matched to the candidates that project close to it. A candidate
-   takes at most one pick per tilt, and picks that match no candidate are set aside as false
+1. **Match:** each pick is matched to the particles that project close to it. A particle
+   takes at most one pick per tilt, and picks that match no particle are set aside as false
    positives.
-2. **Move:** each candidate moves to the 3D position that best agrees with its picks.
+2. **Move:** each particle moves to the 3D position that best agrees with its picks.
 
-Candidates that too few picks support are dropped, so the number of particles is found
-automatically. A particle's score is the fraction of tilts whose picks support it.
+Particles that too few picks support are dropped, so their number is found automatically. A
+particle's score is the fraction of tilts whose picks support it.
 
 The method is a Gaussian mixture fitted by expectation-maximisation.
 [`docs/algorithm.md`](docs/algorithm.md) gives the details and how they map to the code.
