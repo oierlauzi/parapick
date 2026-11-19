@@ -138,6 +138,15 @@ acquired), and `--schedule-only` writes the Leopard-EM configurations without se
 resume tilt by tilt. The derived parameters are a principled starting point, not validated
 settings.
 
+**Speed.** A full-size 4k tilt with the default sampling takes on the order of days of GPU
+time. For locations (not poses) on many tilts, whose detections `localize` combines,
+`--binning N` searches the tilts binned (the template may be given at either pixel size;
+picks stay in native pixels) and `--sampling fast` keeps the angular and defocus steps
+proportional to the resolution left in each tilt instead of capping them at 4°/3° and 500 Å.
+Binning by 4 with `--sampling fast` is two orders of magnitude cheaper than the default. Since
+`localize` tolerates false positives on single tilts, a `--false-positives` well above 1 keeps
+more true particles.
+
 The template matching itself is done by Leopard-EM, developed by the Lucas lab (UC Berkeley,
 BSD-3-Clause licence); ParaPick only derives its parameters for tilt-series. If you use
 `match-template`, please cite Leopard-EM, and Grant & Grigorieff for the damage model:

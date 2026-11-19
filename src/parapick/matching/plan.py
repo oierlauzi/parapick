@@ -6,6 +6,7 @@ searched, and the Leopard-EM ``match_template`` configuration of each one.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,9 @@ class PlannedTilt:
     acquisition_order
         0-based position of the tilt in the acquisition.
     pixel_size
-        Å/px of the image.
+        Å/px of the searched image (binned).
+    binning
+        Binning of the searched image relative to the tilt image.
     optics, ctf, tilt
         What the parameters were derived from.
     parameters
@@ -62,6 +65,7 @@ class PlannedTilt:
     tilt: TiltImage
     parameters: TiltParameters
     selected: bool
+    binning: int = 1
 
     @property
     def stem(self) -> str:
@@ -77,15 +81,20 @@ def plan_matching(
     dose_per_tilt: float | None = None,
     energy_filter: bool = True,
     max_tilts: int | None = None,
+    binning: int = 1,
     constants: ScheduleConstants | None = None,
 ) -> list[PlannedTilt]:
     """Schedule every tilt and select the ones to search.
 
     With ``max_tilts``, only the tilts of each tilt-series with the highest predicted SNR
-    are selected. The plan is sorted by decreasing predicted SNR, the order to search in.
+    are selected. With ``binning``, the tilts are searched binned by that factor (Fourier
+    cropping): the parameters are those of the binned images. The plan is sorted by
+    decreasing predicted SNR, the order to search in.
     """
     if max_tilts is not None and max_tilts < 1:
         raise ValueError("max_tilts must be >= 1")
+    if binning < 1:
+        raise ValueError("binning must be >= 1")
     planned = []
     for ts in tomograms:
         inputs = infer_acquisition(
@@ -95,7 +104,13 @@ def plan_matching(
             dose_per_tilt=dose_per_tilt,
             energy_filter=energy_filter,
         )
-        parameters = schedule_tilts(inputs.acquisition, inputs.tilts, constants)
+        width, height = inputs.acquisition.image_size
+        acquisition = dataclasses.replace(
+            inputs.acquisition,
+            pixel_size=ts.pixel_size * binning,
+            image_size=(width // binning, height // binning),
+        )
+        parameters = schedule_tilts(acquisition, inputs.tilts, constants)
         ranking = sorted(range(ts.n_tilts), key=lambda i: -parameters[i].relative_snr)
         selected = set(ranking if max_tilts is None else ranking[:max_tilts])
         planned += [
@@ -105,12 +120,13 @@ def plan_matching(
                 tilt_id=ts.tilt_ids[i],
                 image=ts.images[i],
                 acquisition_order=inputs.acquisition_order[i],
-                pixel_size=ts.pixel_size,
+                pixel_size=acquisition.pixel_size,
                 optics=inputs.optics,
                 ctf=inputs.ctfs[i],
                 tilt=inputs.tilts[i],
                 parameters=parameters[i],
                 selected=i in selected,
+                binning=binning,
             )
             for i in range(ts.n_tilts)
         ]

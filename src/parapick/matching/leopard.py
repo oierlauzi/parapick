@@ -22,6 +22,7 @@ __all__ = [
     "gpu_ids_for",
     "run_match_template",
     "template_pixel_size",
+    "write_binned",
     "write_config",
 ]
 
@@ -58,6 +59,24 @@ def template_pixel_size(path: Path) -> float | None:
     with mrcfile.open(path, header_only=True, permissive=True) as mrc:
         size = float(mrc.voxel_size.x)
     return size if size > 0 else None
+
+
+def write_binned(source: Path, target: Path, factor: int) -> None:
+    """Write ``source`` (2D image or 3D volume) binned by ``factor`` as an MRC file."""
+    import mrcfile
+
+    from parapick.matching.binning import fourier_crop
+
+    with mrcfile.open(source, permissive=True) as mrc:
+        data = fourier_crop(mrc.data, factor)
+        size = float(mrc.voxel_size.x)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".tmp.mrc")
+    with mrcfile.new(temporary, overwrite=True) as mrc:
+        mrc.set_data(data)
+        if size > 0:
+            mrc.voxel_size = size * factor
+    temporary.replace(target)
 
 
 def write_config(config: dict[str, Any], path: Path) -> None:

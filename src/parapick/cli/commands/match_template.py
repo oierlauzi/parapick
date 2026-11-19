@@ -10,6 +10,7 @@ from pathlib import Path
 
 from parapick.cli.base import add_tomograms_arguments, read_options_from
 from parapick.formats import FormatRegistry
+from parapick.matching.schedule import SAMPLINGS
 
 __all__ = ["MatchTemplateCommand"]
 
@@ -92,6 +93,24 @@ class MatchTemplateCommand:
 
         search = parser.add_argument_group("search")
         search.add_argument(
+            "--binning",
+            type=int,
+            default=1,
+            metavar="N",
+            help="Search the tilt images binned by N (Fourier cropping): about N² faster per "
+            "orientation, and coarser steps follow from the coarser pixel. The template may be "
+            "at the native or the binned pixel size. Picks stay in native pixels (default: 1).",
+        )
+        search.add_argument(
+            "--sampling",
+            choices=tuple(SAMPLINGS),
+            default="default",
+            help="'default' caps the angular steps at 4°/3° and the defocus step at 500 Å. "
+            "'fast' keeps them proportional to the resolution of each tilt (the relative "
+            "accuracy of Leopard-EM's defaults): much faster on binned or late tilts, for "
+            "locations rather than poses (default: default).",
+        )
+        search.add_argument(
             "--max-tilts",
             type=int,
             metavar="N",
@@ -103,7 +122,9 @@ class MatchTemplateCommand:
             type=float,
             default=1.0,
             metavar="N",
-            help="Expected false positives per tilt image, sets the threshold (default: 1).",
+            help="Expected false positives per tilt image, sets the threshold. localize "
+            "tolerates false positives on single tilts, so a value well above 1 keeps more "
+            "true particles (default: 1).",
         )
         search.add_argument(
             "--orientation-batch-size",
@@ -142,6 +163,8 @@ class MatchTemplateCommand:
             symmetry=args.symmetry,
             device=args.device,
             orientation_batch_size=args.orientation_batch_size,
+            binning=args.binning,
+            sampling=args.sampling,
             schedule_only=args.schedule_only,
             overwrite=args.overwrite,
             tomograms_format=args.tomograms_format,

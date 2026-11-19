@@ -11,18 +11,24 @@ The peaks found on all tilts are written as ParaPick picks, ready for ``localize
 Output directory::
 
     micrographs/<TS>_<NNN>.mrc   tilt images as 2D MRC files (links when possible)
+    binned/<TS>_<NNN>.mrc        the tilt images binned, if searched binned
+    template_bin<N>.mrc          the template binned, if given at the native pixel size
     tomograms.star               geometry pointing at them (use it with localize)
+    settings.json                binning and sampling of the run (a resumed run must match)
     schedule.csv                 parameters of every tilt and which ones were searched
     configs/<TS>_<NNN>.yaml      Leopard-EM match_template configuration of each tilt
     results/<TS>_<NNN>.h5        Leopard-EM results (MIP, z-scores, orientations, defocus)
     peaks/<TS>_<NNN>.csv         Leopard-EM peaks of each searched tilt
-    picks.star                   all the peaks, as ParaPick picks (score: z-score)
+    picks.star                   all the peaks, as ParaPick picks in native pixels
+                                 (score: z-score)
 
 Runs resume: tilts whose peaks were written are not searched again unless ``overwrite``.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -35,7 +41,7 @@ from parapick.formats import AUTO, FormatRegistry, TomogramsReadOptions, default
 from parapick.formats.relion5.picks import write_picks
 from parapick.matching import leopard
 from parapick.matching.plan import PlannedTilt, leopard_config, plan_matching, schedule_table
-from parapick.matching.schedule import ScheduleConstants
+from parapick.matching.schedule import SAMPLINGS, ScheduleConstants
 from parapick.tomography import PickTable
 from parapick.workflows.unstack import unstack
 
@@ -48,6 +54,8 @@ PICKS_FILE = "picks.star"
 CONFIGS_DIRECTORY = "configs"
 RESULTS_DIRECTORY = "results"
 PEAKS_DIRECTORY = "peaks"
+BINNED_DIRECTORY = "binned"
+SETTINGS_FILE = "settings.json"
 SCORE_COLUMN = "scaled_mip"
 """Leopard-EM's z-score of a peak, used as the score of the pick."""
 PIXEL_SIZE_TOLERANCE = 0.01
@@ -68,7 +76,10 @@ def _peaks_path(output: Path, tilt: PlannedTilt) -> Path:
 
 
 def collect_picks(plan: Sequence[PlannedTilt], output: Path) -> PickTable:
-    """Gather the peaks of the searched tilts as ParaPick picks (pixels of the tilt images)."""
+    """Gather the peaks of the searched tilts as ParaPick picks (native pixels of the tilts).
+
+    Peaks found on binned images are scaled back: binned pixel ``i`` is native ``i * binning``.
+    """
     names, tilt_ids, coordinates, scores = [], [], [], []
     for tilt in plan:
         path = _peaks_path(output, tilt)
@@ -77,7 +88,8 @@ def collect_picks(plan: Sequence[PlannedTilt], output: Path) -> PickTable:
         peaks = pd.read_csv(path)
         names += [tilt.tilt_series] * len(peaks)
         tilt_ids += [tilt.tilt_id] * len(peaks)
-        coordinates.append(peaks[["pos_x_img", "pos_y_img"]].to_numpy(dtype=np.float64))
+        position = peaks[["pos_x_img", "pos_y_img"]].to_numpy(dtype=np.float64)
+        coordinates.append(position * tilt.binning)
         scores.append(peaks[SCORE_COLUMN].to_numpy(dtype=np.float64))
     return PickTable(
         tilt_ids=np.array(tilt_ids, dtype=object),
@@ -87,15 +99,45 @@ def collect_picks(plan: Sequence[PlannedTilt], output: Path) -> PickTable:
     )
 
 
-def _check_template(template: Path, pixel_size: float) -> None:
+def _close(a: float, b: float) -> bool:
+    return abs(a - b) <= PIXEL_SIZE_TOLERANCE * b
+
+
+def _prepare_template(template: Path, pixel_size: float, binning: int, output: Path) -> Path:
+    """The template at the searched pixel size: as given, or binned if at the native one."""
+    searched = pixel_size * binning
     size = leopard.template_pixel_size(template)
     if size is None:
-        logger.warning("%s has no voxel size; it must be %.4f Å/px", template, pixel_size)
-    elif abs(size - pixel_size) > PIXEL_SIZE_TOLERANCE * pixel_size:
-        raise ValueError(
-            f"The template has {size:.4f} Å/px but the tilt images {pixel_size:.4f} Å/px: "
-            "simulate or rescale the template at the pixel size of the tilt-series"
+        logger.warning(
+            "%s has no voxel size; assuming %.4f Å/px (the tilt-series)", template, pixel_size
         )
+        size = pixel_size
+    if _close(size, searched):
+        return template
+    if binning > 1 and _close(size, pixel_size):
+        binned = output / f"template_bin{binning}.mrc"
+        leopard.write_binned(template, binned, binning)
+        logger.info("Template binned by %d: %s", binning, binned)
+        return binned
+    expected = f"{pixel_size:.4f}" + (f" or {searched:.4f}" if binning > 1 else "")
+    raise ValueError(
+        f"The template has {size:.4f} Å/px but must have {expected} Å/px: simulate or rescale "
+        "it at the pixel size of the tilt-series"
+    )
+
+
+def _check_settings(output: Path, settings: dict[str, object], overwrite: bool) -> None:
+    """Refuse to resume a run made with other settings (its peaks would be mixed in)."""
+    path = output / SETTINGS_FILE
+    if path.exists() and not overwrite:
+        previous = json.loads(path.read_text())
+        if previous != settings:
+            raise ValueError(
+                f"{output} holds a run with {previous}, not {settings}: use another output "
+                "directory or --overwrite"
+            )
+    output.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(settings))
 
 
 def run_match_template(
@@ -113,6 +155,8 @@ def run_match_template(
     symmetry: str = "C1",
     device: str = "auto",
     orientation_batch_size: int = 16,
+    binning: int = 1,
+    sampling: str = "default",
     schedule_only: bool = False,
     overwrite: bool = False,
     tomograms_format: str = AUTO,
@@ -127,7 +171,8 @@ def run_match_template(
     tomograms_path
         RELION 5 ``tomograms.star`` with the CTF and the pre-exposure of each tilt.
     template
-        Template volume (MRC) at the pixel size of the tilt-series.
+        Template volume (MRC) at the pixel size of the tilt-series, or of the binned
+        tilt-series.
     output_directory
         Destination (see the module documentation).
     particle_diameter
@@ -150,6 +195,13 @@ def run_match_template(
         ``auto``, ``gpu`` (all visible GPUs) or ``cpu``.
     orientation_batch_size
         Orientations correlated at once (GPU memory).
+    binning
+        Search the tilt images binned by this factor (Fourier cropping). The parameters
+        follow the binned pixel size; the picks are in native pixels.
+    sampling
+        Sampling policy, a key of :data:`~parapick.matching.schedule.SAMPLINGS`:
+        ``default`` or ``fast`` (steps proportional to resolution, uncapped). Ignored if
+        ``constants`` is given.
     schedule_only
         Write the schedule and the configurations, but do not search.
     overwrite
@@ -165,11 +217,17 @@ def run_match_template(
         tomograms = tomograms.subset(list(tilt_series))
     if not len(tomograms):
         raise ValueError(f"No tilt-series in {tomograms_path}")
-    for ts in tomograms:
-        _check_template(template, ts.pixel_size)
+    if sampling not in SAMPLINGS:
+        raise ValueError(f"Unknown sampling {sampling!r} (choices: {', '.join(SAMPLINGS)})")
+    constants = constants or SAMPLINGS[sampling]
+    pixel_size = tomograms.tilt_series[0].pixel_size
+    if any(not _close(ts.pixel_size, pixel_size) for ts in tomograms):
+        raise ValueError("All tilt-series must have the same pixel size (one template)")
+    output = output_directory
+    _check_settings(output, {"binning": binning, "sampling": sampling}, overwrite)
+    template = _prepare_template(template, pixel_size, binning, output)
 
     # Leopard-EM reads 2D MRC files: link or extract the tilt images
-    output = output_directory
     tomograms, _ = unstack(tomograms, output, anchor=tomograms_path, link=True)
     registry.tomograms_writer("relion5").write_tomograms(tomograms, output / "tomograms.star")
 
@@ -180,8 +238,18 @@ def run_match_template(
         dose_per_tilt=dose_per_tilt,
         energy_filter=energy_filter,
         max_tilts=max_tilts,
+        binning=binning,
         constants=constants,
     )
+    if binning > 1:
+        binned = []
+        for tilt in plan:
+            target = output / BINNED_DIRECTORY / f"{tilt.stem}.mrc"
+            if overwrite or not target.exists():
+                leopard.write_binned(Path(tilt.image), target, binning)
+            binned.append(dataclasses.replace(tilt, image=str(target)))
+        plan = binned
+        logger.info("Tilt images binned by %d in %s", binning, output / BINNED_DIRECTORY)
     schedule_table(plan).to_csv(output / SCHEDULE_FILE, index=False)
     selected = [t for t in plan if t.selected]
     logger.info(

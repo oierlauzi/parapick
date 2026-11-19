@@ -39,6 +39,7 @@ from scipy.integrate import trapezoid
 from scipy.special import erfcinv
 
 __all__ = [
+    "SAMPLINGS",
     "Acquisition",
     "ScheduleConstants",
     "TiltImage",
@@ -86,6 +87,10 @@ class ScheduleConstants:
         Allowance for the error of the CTF fit (Å).
     defocus_half_range_min
         Smallest half range of the defocus search (Å), Leopard-EM's default.
+    minimal_defocus_planes
+        Search the fewest defocus planes that leave every defocus of the range within half a
+        step of one (the tolerance the step is designed for). Otherwise the half range is
+        rounded up to whole steps, as in the specification, which can add a plane each side.
     b_factor
         Envelope ``exp(-B k² / 2)`` on the template power (Å²), for the SNR ranking.
     inelastic_mean_free_path
@@ -113,9 +118,30 @@ class ScheduleConstants:
     defocus_step_max: float = 500.0
     defocus_margin: float = 300.0
     defocus_half_range_min: float = 1200.0
+    minimal_defocus_planes: bool = False
     b_factor: float = 60.0
     inelastic_mean_free_path: float = 3200.0
     reference_dose: float = 30.0
+
+
+SAMPLINGS: dict[str, ScheduleConstants] = {
+    "default": ScheduleConstants(),
+    "fast": ScheduleConstants(
+        theta_max=math.inf,
+        psi_max=math.inf,
+        defocus_step_max=math.inf,
+        minimal_defocus_planes=True,
+    ),
+}
+"""Named sampling policies.
+
+``default`` caps the angular steps at 4°/3° and the defocus step at 500 Å, because coarse
+sampling costs SNR. ``fast`` keeps the angular steps proportional to resolution / diameter and
+the defocus step to the depth of field at every resolution: the same relative misregistration
+as Leopard-EM's defaults at their reference point, at any resolution. It also searches the
+fewest defocus planes that cover the range within half a step. It suits finding
+locations (not poses) on many tilts, whose detections are combined, e.g. by ``localize``.
+"""
 
 
 @dataclass(frozen=True)
@@ -351,7 +377,11 @@ def schedule_tilts(
         half = (
             extent * abs(math.tan(alpha)) + a.thickness / (2.0 * math.cos(alpha)) + c.defocus_margin
         )
-        half = math.ceil(max(half, c.defocus_half_range_min) / step) * step
+        half = max(half, c.defocus_half_range_min)
+        if c.minimal_defocus_planes:  # planes 0, ±step, ... within step / 2 of the range
+            half = max(0, math.ceil((half - 0.5 * step) / step)) * step
+        else:
+            half = math.ceil(half / step) * step
         n_defocus = round(2.0 * half / step) + 1
 
         n_orientations = (FULL_SPHERE_DEG2 / theta**2) * (360.0 / psi)

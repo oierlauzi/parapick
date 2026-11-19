@@ -223,3 +223,90 @@ def test_command_only_registered_with_leopard(monkeypatch):
     assert commands._optional_commands() == ()
     monkeypatch.setattr(leopard, "available", lambda: True)
     assert [c.name for c in commands._optional_commands()] == ["match-template"]
+
+
+# ---------------------------------------------------------------- binning and sampling
+def test_fourier_crop_keeps_mean_and_origin():
+    from parapick.matching.binning import binned_shape, fourier_crop
+
+    assert binned_shape((3710, 3838), 4) == (927, 959)
+    rng = np.random.default_rng(0)
+    image = rng.normal(5.0, 1.0, (64, 48))
+    binned = fourier_crop(image, 2)
+    assert binned.shape == (32, 24) and binned.dtype == np.float32
+    assert binned.mean() == pytest.approx(image.mean(), rel=1e-5)
+    # A smooth blob at native (x=20, y=36) lands at binned (10, 18)
+    y, x = np.mgrid[:64, :48]
+    blob = np.exp(-((x - 20.0) ** 2 + (y - 36.0) ** 2) / (2 * 4.0**2))
+    peak = np.unravel_index(np.argmax(fourier_crop(blob, 2)), (32, 24))
+    assert peak == (18, 10)
+    volume = rng.normal(size=(16, 16, 16))
+    assert fourier_crop(volume, 4).shape == (4, 4, 4)
+    np.testing.assert_array_equal(fourier_crop(image, 1), image.astype(np.float32))
+
+
+def test_binned_plan_uses_the_binned_pixel_size():
+    tomograms = TomogramSet.of([_relion_tilt_series()])
+    native = plan_matching(tomograms, particle_diameter=250.0)
+    binned = plan_matching(tomograms, particle_diameter=250.0, binning=4)
+    by_stem = {t.stem: t for t in native}
+    for tilt in binned:
+        assert tilt.binning == 4 and tilt.pixel_size == 8.0
+        assert tilt.parameters.resolution >= by_stem[tilt.stem].parameters.resolution
+    with pytest.raises(ValueError, match="binning"):
+        plan_matching(tomograms, particle_diameter=250.0, binning=0)
+
+
+def test_fast_sampling_is_proportional_and_uncapped():
+    from parapick.matching.schedule import SAMPLINGS
+
+    tilts = _reference_tilts()
+    default = schedule_tilts(REFERENCE, tilts, SAMPLINGS["default"])
+    fast = schedule_tilts(REFERENCE, tilts, SAMPLINGS["fast"])
+    # Identical where the default is not capped (first tilt, at Nyquist)
+    assert (fast[0].theta_step, fast[0].psi_step) == (2.5, 1.5)
+    assert fast[0].defocus_step == pytest.approx(default[0].defocus_step)
+    # Coarser at the end of the series, where the default is capped
+    last_default, last_fast = default[-1], fast[-1]
+    assert last_fast.theta_step / last_fast.psi_step == pytest.approx(2.5 / 1.5, rel=0.01)
+    assert last_fast.theta_step > last_default.theta_step == 4.0
+    assert last_fast.defocus_step > 500.0
+    assert last_fast.n_defocus < last_default.n_defocus
+    # Every defocus of the range within half a step of a plane, with no extra plane
+    extent = 3838 * 1.7 / 2  # gradient along x
+    for tilt, p in zip(tilts, fast, strict=True):
+        alpha = math.radians(tilt.angle)
+        required = extent * abs(math.tan(alpha)) + 2000.0 / (2 * math.cos(alpha)) + 300.0
+        required = max(required, 1200.0)
+        assert p.defocus_half_range + 0.5 * p.defocus_step >= required
+        assert p.defocus_half_range == 0 or p.defocus_half_range - 0.5 * p.defocus_step < required
+    cost = sum(p.n_orientations * p.n_defocus for p in fast)
+    # At full size the first tilts (at Nyquist) dominate: about 3x cheaper overall
+    assert cost < sum(p.n_orientations * p.n_defocus for p in default) / 3
+
+
+def test_picks_of_binned_tilts_are_in_native_pixels(tmp_path):
+    plan = plan_matching(
+        TomogramSet.of([_relion_tilt_series()]), particle_diameter=250.0, binning=4, max_tilts=1
+    )
+    (tmp_path / "peaks").mkdir()
+    pd.DataFrame({"pos_x_img": [10.0], "pos_y_img": [5.0], "scaled_mip": [9.0]}).to_csv(
+        tmp_path / "peaks" / f"{plan[0].stem}.csv", index=False
+    )
+    picks = collect_picks(plan, tmp_path)
+    np.testing.assert_allclose(picks.coordinates, [[40.0, 20.0]])
+    assert picks.pixel_size is None
+
+
+def test_minimal_defocus_planes_cover_the_range():
+    from parapick.matching.schedule import ScheduleConstants
+
+    flat = Acquisition(10.0, (100, 100), 300.0, 400.0, 250.0)  # coarse: steps of ~2500 Å
+    c = ScheduleConstants(defocus_step_max=math.inf, minimal_defocus_planes=True)
+    p = schedule_tilts(flat, [TiltImage(0.0, 0.0, 3.0)], c)[0]
+    assert p.defocus_step > 2 * 1200.0  # one plane covers the minimum range of ±1200 Å
+    assert (p.n_defocus, p.defocus_half_range) == (1, 0.0)
+    rounded = schedule_tilts(
+        flat, [TiltImage(0.0, 0.0, 3.0)], ScheduleConstants(defocus_step_max=math.inf)
+    )[0]
+    assert rounded.n_defocus == 3

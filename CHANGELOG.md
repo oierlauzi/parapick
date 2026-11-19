@@ -16,7 +16,11 @@ All notable changes to this project are documented here. The format follows
   angle of the sample (pre-tilt included) and direction of its defocus gradient from the
   geometry. Writes `schedule.csv`, one Leopard-EM configuration and result per tilt, and the
   peaks as `picks.star` for `localize`. `--max-tilts` searches only the tilts with the highest
-  predicted SNR; runs resume. The command is only registered when Leopard-EM is installed.
+  predicted SNR; runs resume. `--binning N` searches the tilts binned by Fourier cropping
+  (the template is binned too if given at the native pixel size; picks stay in native
+  pixels). `--sampling fast` keeps the steps proportional to the resolution of each tilt,
+  uncapped, with the fewest defocus planes covering the range. The command is only
+  registered when Leopard-EM is installed.
   In Python: `parapick.matching` (the schedule needs only numpy and scipy). Leopard-EM
   (Giammar et al., 2026) is credited in the README, `CITATION.cff`, the command's help and
   its log.
