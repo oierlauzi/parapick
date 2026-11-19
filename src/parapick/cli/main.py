@@ -71,7 +71,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(args.verbose - args.quiet)
     command: Command = args._command
     try:
-        configure_jax(args.device, args.x64)
+        if getattr(command, "uses_jax", True):
+            configure_jax(args.device, args.x64)
         return command.run(args, registry)
     # Before OSError, which BrokenPipeError subclasses.
     except BrokenPipeError:  # pragma: no cover - e.g. `parapick formats | head -1`

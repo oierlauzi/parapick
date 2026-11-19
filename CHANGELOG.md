@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `match-template` (optional, `pip install "parapick[leopard]"`, Python ≥ 3.12): 2D template
+  matching of every tilt image with [Leopard-EM](https://github.com/Lucaslab-Berkeley/Leopard-EM),
+  with the parameters of each tilt inferred from the acquisition. The low-pass follows the
+  dose received before the tilt (Grant & Grigorieff, 2015), the angular and defocus steps the
+  resolution left, and the defocus range the tilt of the sample. The dose and acquisition
+  order come from `rlnMicrographPreExposure`, the CTF from `rlnDefocusU/V/Angle`, and the
+  angle of the sample (pre-tilt included) and direction of its defocus gradient from the
+  geometry. Writes `schedule.csv`, one Leopard-EM configuration and result per tilt, and the
+  peaks as `picks.star` for `localize`. `--max-tilts` searches only the tilts with the highest
+  predicted SNR; runs resume. The command is only registered when Leopard-EM is installed.
+  In Python: `parapick.matching` (the schedule needs only numpy and scipy).
 - Pick assignments: `localize --write-assignments` writes `assignments.star`, which lists the
   2D picks each particle explains (at most one per tilt), with their input row
   (`ppkPickIndex`), responsibility and residual. `--assignment-threshold` (default 0.5) sets

@@ -27,7 +27,11 @@ class CommandError(RuntimeError):
 
 @runtime_checkable
 class Command(Protocol):
-    """A ``parapick`` sub-command."""
+    """A ``parapick`` sub-command.
+
+    A command may set ``uses_jax = False`` to skip the set-up of JAX (and its allocation of
+    GPU memory), e.g. when it runs another GPU program.
+    """
 
     name: str
     help: str
