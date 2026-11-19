@@ -68,6 +68,16 @@ class PlannedTilt:
     binning: int = 1
 
     @property
+    def peak_separation(self) -> float:
+        """Smallest distance between two peaks (pixels of the searched image).
+
+        One resolution element of the tilt: the width of a correlation peak after its
+        low-pass. Projections of different particles can be much closer than the particle
+        size (e.g. at different depths), so the size of the particle is not used.
+        """
+        return self.parameters.resolution / self.pixel_size
+
+    @property
     def stem(self) -> str:
         """Unique file stem of the tilt: ``<TS>_<NNN>`` (1-based index)."""
         return f"{self.tilt_series}_{self.index + 1:03d}"

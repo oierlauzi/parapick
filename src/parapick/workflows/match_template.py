@@ -301,7 +301,7 @@ def run_match_template(
             configs[tilt.stem],
             orientation_batch_size=orientation_batch_size,
             false_positives=false_positives,
-            mask_radius=0.5 * particle_diameter / tilt.pixel_size,
+            mask_radius=tilt.peak_separation,
         )
         peaks_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = peaks_path.with_suffix(".csv.tmp")

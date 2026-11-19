@@ -19,7 +19,9 @@ All notable changes to this project are documented here. The format follows
   predicted SNR; runs resume. `--binning N` searches the tilts binned by Fourier cropping
   (the template is binned too if given at the native pixel size; picks stay in native
   pixels). `--sampling fast` keeps the steps proportional to the resolution of each tilt,
-  uncapped, with the fewest defocus planes covering the range. The command is only
+  uncapped, with the fewest defocus planes covering the range. Peaks are kept down to one
+  resolution element of each tilt apart, not the particle size, since particles overlap in
+  projection. The command is only
   registered when Leopard-EM is installed.
   In Python: `parapick.matching` (the schedule needs only numpy and scipy). Leopard-EM
   (Giammar et al., 2026) is credited in the README, `CITATION.cff`, the command's help and

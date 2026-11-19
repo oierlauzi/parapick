@@ -97,7 +97,7 @@ def run_match_template(
     """Search one tilt image and return its peaks (Leopard-EM's table, one row per peak).
 
     Peaks are thresholded by Leopard-EM for ``false_positives`` expected false positives on
-    the image, and closer than ``mask_radius`` pixels to a higher one are dropped.
+    the image, and those closer than ``mask_radius`` pixels to a higher one are dropped.
     ``pos_x_img``/``pos_y_img`` are the particle centres in pixels of the image.
     """
     import torch

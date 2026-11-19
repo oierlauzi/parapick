@@ -310,3 +310,15 @@ def test_minimal_defocus_planes_cover_the_range():
         flat, [TiltImage(0.0, 0.0, 3.0)], ScheduleConstants(defocus_step_max=math.inf)
     )[0]
     assert rounded.n_defocus == 3
+
+
+def test_peak_separation_is_one_resolution_element_not_the_particle_size():
+    tomograms = TomogramSet.of([_relion_tilt_series()])
+    for diameter in (100.0, 400.0):
+        for tilt in plan_matching(tomograms, particle_diameter=diameter, binning=2):
+            assert tilt.peak_separation == pytest.approx(
+                tilt.parameters.resolution / tilt.pixel_size
+            )
+            assert tilt.peak_separation >= 2.0  # Nyquist
+    first = plan_matching(tomograms, particle_diameter=400.0)[0]
+    assert first.peak_separation == pytest.approx(2.0)  # 4 Å at 2 Å/px, not 100 px

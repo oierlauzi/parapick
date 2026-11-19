@@ -61,8 +61,9 @@ class MatchTemplateCommand:
             type=float,
             required=True,
             metavar="Å",
-            help="Diameter of the target. Sets the high-pass, the angular steps and the "
-            "minimum distance between peaks.",
+            help="Diameter of the target. Sets the high-pass and the angular steps. Peaks "
+            "may be closer than it (particles overlap in projection): their minimum distance "
+            "is one resolution element of each tilt.",
         )
         sample.add_argument(
             "--thickness",
