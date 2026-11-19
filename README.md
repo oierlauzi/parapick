@@ -138,6 +138,17 @@ acquired), and `--schedule-only` writes the Leopard-EM configurations without se
 resume tilt by tilt. The derived parameters are a principled starting point, not validated
 settings.
 
+The template matching itself is done by Leopard-EM, developed by the Lucas lab (UC Berkeley,
+BSD-3-Clause licence); ParaPick only derives its parameters for tilt-series. If you use
+`match-template`, please cite Leopard-EM, and Grant & Grigorieff for the damage model:
+
+- Giammar MD, Dickerson JL, Hall LN, Lucas BA (2026). Leopard-EM: an extensible 2D
+  template-matching package to accelerate in situ structural biology. *Acta Cryst. D* 82,
+  30–42. https://doi.org/10.1107/S2059798325009982
+- Grant T, Grigorieff N (2015). Measuring the optimal exposure for single particle cryo-EM
+  using a 2.6 Å reconstruction of rotavirus VP6. *eLife* 4, e06980.
+  https://doi.org/10.7554/eLife.06980
+
 ## Quick start (Python)
 
 ```python

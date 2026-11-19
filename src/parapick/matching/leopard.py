@@ -1,5 +1,8 @@
 """Run Leopard-EM ``match_template`` (optional dependency: ``pip install parapick[leopard]``).
 
+Leopard-EM (https://github.com/Lucaslab-Berkeley/Leopard-EM) does the template matching;
+ParaPick only derives its parameters. Results obtained with it must cite :data:`CITATION`.
+
 This is the only module that imports Leopard-EM (and PyTorch), and only when it is used.
 """
 
@@ -13,9 +16,23 @@ from typing import Any
 
 import pandas as pd
 
-__all__ = ["available", "gpu_ids_for", "run_match_template", "template_pixel_size", "write_config"]
+__all__ = [
+    "CITATION",
+    "available",
+    "gpu_ids_for",
+    "run_match_template",
+    "template_pixel_size",
+    "write_config",
+]
 
 logger = logging.getLogger(__name__)
+
+CITATION = (
+    "Giammar MD, Dickerson JL, Hall LN, Lucas BA (2026). Leopard-EM: an extensible 2D "
+    "template-matching package to accelerate in situ structural biology. Acta Cryst. D 82, "
+    "30-42. https://doi.org/10.1107/S2059798325009982"
+)
+"""Leopard-EM (Lucas lab, UC Berkeley; BSD-3-Clause), which does the template matching."""
 
 
 def available() -> bool:

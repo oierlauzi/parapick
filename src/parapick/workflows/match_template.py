@@ -1,5 +1,8 @@
 """Template matching of every tilt image with Leopard-EM, with parameters for tilt-series.
 
+The search itself is done by Leopard-EM (Giammar et al., 2026; see
+:data:`parapick.matching.leopard.CITATION`), which must be cited with the results.
+
 Each tilt image is searched on its own (2DTM), with parameters derived from the acquisition
 (:mod:`parapick.matching.schedule`): the low-pass follows the dose the tilt had received, the
 angular and defocus steps the resolution left, and the defocus range the tilt of the sample.
@@ -152,6 +155,9 @@ def run_match_template(
     overwrite
         Search tilts again even if their peaks exist.
     """
+    logger.info(
+        "Template matching by Leopard-EM. If you use these results, cite: %s", leopard.CITATION
+    )
     registry = registry or default_registry()
     reader = registry.tomograms_reader(tomograms_format, tomograms_path)
     tomograms = reader.read_tomograms(tomograms_path, read_options or TomogramsReadOptions())

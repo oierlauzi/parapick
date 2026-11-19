@@ -26,6 +26,9 @@ class MatchTemplateCommand:
 
     def add_arguments(self, parser: argparse.ArgumentParser, registry: FormatRegistry) -> None:
         """Declare arguments."""
+        from parapick.matching.leopard import CITATION
+
+        parser.epilog = f"The search is done by Leopard-EM. Please cite: {CITATION}"
         io = parser.add_argument_group("input/output")
         add_tomograms_arguments(io, registry)
         io.add_argument(

@@ -17,7 +17,9 @@ All notable changes to this project are documented here. The format follows
   geometry. Writes `schedule.csv`, one Leopard-EM configuration and result per tilt, and the
   peaks as `picks.star` for `localize`. `--max-tilts` searches only the tilts with the highest
   predicted SNR; runs resume. The command is only registered when Leopard-EM is installed.
-  In Python: `parapick.matching` (the schedule needs only numpy and scipy).
+  In Python: `parapick.matching` (the schedule needs only numpy and scipy). Leopard-EM
+  (Giammar et al., 2026) is credited in the README, `CITATION.cff`, the command's help and
+  its log.
 - Pick assignments: `localize --write-assignments` writes `assignments.star`, which lists the
   2D picks each particle explains (at most one per tilt), with their input row
   (`ppkPickIndex`), responsibility and residual. `--assignment-threshold` (default 0.5) sets
