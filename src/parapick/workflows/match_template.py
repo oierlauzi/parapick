@@ -329,7 +329,11 @@ def run_match_template(
         len(selected),
     )
 
-    gpu_ids = leopard.gpu_ids_for(device)
+    searching = not schedule_only and any(
+        not _searched(output, tilt) or overwrite for tilt in selected
+    )
+    # Only a search needs a GPU: writing the schedule or picking again does not
+    gpu_ids = leopard.gpu_ids_for(device) if searching else "all"
     (output / RESULTS_DIRECTORY).mkdir(parents=True, exist_ok=True)
     configs = {}
     for tilt in plan:

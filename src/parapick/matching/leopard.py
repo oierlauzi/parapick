@@ -42,14 +42,18 @@ def available() -> bool:
 
 
 def gpu_ids_for(device: str) -> str:
-    """Leopard-EM ``gpu_ids`` for a ParaPick ``--device`` choice."""
+    """Leopard-EM ``gpu_ids`` for a ParaPick ``--device`` choice: all the visible GPUs.
+
+    Leopard-EM 1.3 cannot search on the CPU: its search fails in a worker process, and the
+    run then hangs instead of failing. So a search without a GPU is refused here.
+    """
     if device == "cpu":
-        return "cpu"
-    if device == "gpu":
-        return "all"
+        raise ValueError("Leopard-EM searches only on a GPU: use --device gpu or auto")
     import torch
 
-    return "all" if torch.cuda.is_available() else "cpu"
+    if not torch.cuda.is_available():
+        raise ValueError("Leopard-EM needs a GPU, and none is visible (CUDA_VISIBLE_DEVICES?)")
+    return "all"
 
 
 def template_pixel_size(path: Path) -> float | None:
