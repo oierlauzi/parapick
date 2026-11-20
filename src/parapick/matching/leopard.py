@@ -11,15 +11,20 @@ from __future__ import annotations
 import gc
 import importlib.util
 import logging
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 __all__ = [
     "CITATION",
+    "automatic_batch_size",
     "available",
     "gpu_ids_for",
+    "image_shape",
     "read_results",
     "run_search",
+    "run_search_process",
     "template_box",
     "template_pixel_size",
     "write_binned",
@@ -27,6 +32,13 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+SEARCH_MEMORY = 4e9
+"""GPU memory (bytes) a search may take with the automatic orientation batch size."""
+BYTES_PER_PIXEL_ORIENTATION = 22.0
+"""GPU memory of the batched backend per image pixel and orientation in a batch (measured:
+5.3 GB for 256 orientations on a 960 x 928 image)."""
+MAX_BATCH_SIZE = 512
 
 CITATION = (
     "Giammar MD, Dickerson JL, Hall LN, Lucas BA (2026). Leopard-EM: an extensible 2D "
@@ -91,6 +103,47 @@ def write_config(config: dict[str, Any], path: Path) -> None:
     MatchTemplateManager(**config).to_yaml(path)
 
 
+def automatic_batch_size(shape: tuple[int, int]) -> int:
+    """Orientations per batch so that a search takes about :data:`SEARCH_MEMORY`.
+
+    Small images need large batches to keep the GPU busy; large ones must not run out of
+    memory: 210 orientations for a 960 x 928 image, 13 for 3838 x 3710.
+    """
+    pixels = float(shape[0] * shape[1])
+    return int(min(max(SEARCH_MEMORY / (BYTES_PER_PIXEL_ORIENTATION * pixels), 1), MAX_BATCH_SIZE))
+
+
+def image_shape(path: Path) -> tuple[int, int]:
+    """``(height, width)`` of a 2D MRC image, from its header."""
+    import mrcfile
+
+    with mrcfile.open(path, header_only=True, permissive=True) as mrc:
+        return int(mrc.header.ny), int(mrc.header.nx)
+
+
+def run_search_process(config_path: Path, *, orientation_batch_size: int, log: Path) -> None:
+    """:func:`run_search` in its own process, so that several searches overlap.
+
+    Leopard-EM spends several seconds starting its worker and compiling before each search;
+    searches in separate processes overlap that with the computation of the others. Their
+    output goes to ``log``.
+    """
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("w") as stream:
+        completed = subprocess.run(
+            [sys.executable, "-m", __name__, str(config_path), str(orientation_batch_size)],
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    if completed.returncode != 0:
+        tail = log.read_text(errors="replace").splitlines()[-5:]
+        raise RuntimeError(
+            f"Leopard-EM failed on {config_path} (exit {completed.returncode}; log {log}): "
+            + " | ".join(tail)
+        )
+
+
 def run_search(config_path: Path, *, orientation_batch_size: int) -> None:
     """Search one tilt image and write Leopard-EM's results (the HDF5 file of the config)."""
     import torch
@@ -134,3 +187,12 @@ def template_box(path: Path) -> int:
 
     with mrcfile.open(path, header_only=True, permissive=True) as mrc:
         return int(mrc.header.nx)
+
+
+def _main() -> None:
+    """``python -m parapick.matching.leopard CONFIG BATCH``: one search (see run_search_process)."""
+    run_search(Path(sys.argv[1]), orientation_batch_size=int(sys.argv[2]))
+
+
+if __name__ == "__main__":  # Leopard-EM spawns its workers: the guard is required
+    _main()

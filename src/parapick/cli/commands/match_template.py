@@ -148,10 +148,17 @@ class MatchTemplateCommand:
         search.add_argument(
             "--orientation-batch-size",
             type=int,
-            default=16,
             metavar="N",
-            help="Orientations correlated at once; lower it if the GPU runs out of memory "
-            "(default: 16).",
+            help="Orientations correlated at once (default: about 4 GB of GPU memory per "
+            "search, from the image size). Lower it if the GPU runs out of memory.",
+        )
+        search.add_argument(
+            "--concurrent-searches",
+            type=int,
+            default=3,
+            metavar="K",
+            help="Tilts searched at once, each in its own process: Leopard-EM's start-up of "
+            "each search overlaps with the others (default: 3).",
         )
         search.add_argument(
             "--schedule-only",
@@ -184,6 +191,7 @@ class MatchTemplateCommand:
             symmetry=args.symmetry,
             device=args.device,
             orientation_batch_size=args.orientation_batch_size,
+            concurrent_searches=args.concurrent_searches,
             binning=args.binning,
             sampling=args.sampling,
             schedule_only=args.schedule_only,

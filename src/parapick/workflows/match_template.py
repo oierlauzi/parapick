@@ -31,6 +31,7 @@ import dataclasses
 import json
 import logging
 from collections.abc import Sequence
+from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -217,7 +218,8 @@ def run_match_template(
     peaks_per_tilt: int | None = None,
     symmetry: str = "C1",
     device: str = "auto",
-    orientation_batch_size: int = 16,
+    orientation_batch_size: int | None = None,
+    concurrent_searches: int = 3,
     binning: int = 1,
     sampling: str = "default",
     schedule_only: bool = False,
@@ -263,7 +265,11 @@ def run_match_template(
     device
         ``auto``, ``gpu`` (all visible GPUs) or ``cpu``.
     orientation_batch_size
-        Orientations correlated at once (GPU memory).
+        Orientations correlated at once. ``None``: about 4 GB of GPU memory per search
+        (:func:`~parapick.matching.leopard.automatic_batch_size`).
+    concurrent_searches
+        Searches run at once, each in its own process: Leopard-EM's start-up of each search
+        (several seconds) then overlaps with the computation of the others.
     binning
         Search the tilt images binned by this factor (Fourier cropping). The parameters
         follow the binned pixel size; the picks are in native pixels.
@@ -352,34 +358,12 @@ def run_match_template(
 
     repick = _picking_changed(output, picking) or overwrite
     half_box = leopard.template_box(template) // 2
-    for n, tilt in enumerate(selected, start=1):
-        peaks_path = _peaks_path(output, tilt)
-        searched = _searched(output, tilt) and not overwrite
-        if searched and peaks_path.exists() and not repick:
-            logger.info("[%d/%d] %s: already searched", n, len(selected), tilt.stem)
-            continue
-        if not searched:
-            p = tilt.parameters
-            logger.info(
-                "[%d/%d] %s: %.0f° tilt, %.1f e/Å² before, %.1f Å, %.2f/%.2f° steps, "
-                "%d defoci of %.0f Å, relative SNR %.3f",
-                n,
-                len(selected),
-                tilt.stem,
-                tilt.tilt.angle,
-                tilt.tilt.pre_exposure,
-                p.resolution,
-                p.theta_step,
-                p.psi_step,
-                p.n_defocus,
-                p.defocus_step,
-                p.relative_snr,
-            )
-            peaks_path.unlink(missing_ok=True)
-            leopard.run_search(configs[tilt.stem], orientation_batch_size=orientation_batch_size)
-            _result_path(output, tilt).with_suffix(DONE_SUFFIX).touch()
+    if concurrent_searches < 1:
+        raise ValueError("concurrent_searches must be >= 1")
+
+    def finish(n: int, tilt: PlannedTilt, searched: bool) -> None:
         peaks = extract_peaks(output, tilt, picking, half_box)
-        _write_peaks(peaks, peaks_path)
+        _write_peaks(peaks, _peaks_path(output, tilt))
         logger.info(
             "[%d/%d] %s: %d peaks%s",
             n,
@@ -388,6 +372,53 @@ def run_match_template(
             len(peaks),
             " (picked again)" if searched else "",
         )
+
+    def search(n: int, tilt: PlannedTilt) -> None:
+        batch = orientation_batch_size or leopard.automatic_batch_size(
+            leopard.image_shape(Path(tilt.image))
+        )
+        leopard.run_search_process(
+            configs[tilt.stem],
+            orientation_batch_size=batch,
+            log=_result_path(output, tilt).with_suffix(".log"),
+        )
+        _result_path(output, tilt).with_suffix(DONE_SUFFIX).touch()
+        finish(n, tilt, searched=False)
+
+    pending: list[Future[None]] = []
+    with ThreadPoolExecutor(max_workers=concurrent_searches) as pool:
+        for n, tilt in enumerate(selected, start=1):
+            peaks_path = _peaks_path(output, tilt)
+            searched = _searched(output, tilt) and not overwrite
+            if searched and peaks_path.exists() and not repick:
+                logger.info("[%d/%d] %s: already searched", n, len(selected), tilt.stem)
+            elif searched:
+                finish(n, tilt, searched=True)
+            else:
+                p = tilt.parameters
+                logger.info(
+                    "[%d/%d] %s: %.0f° tilt, %.1f e/Å² before, %.1f Å, %.2f/%.2f° steps, "
+                    "%d defoci of %.0f Å, relative SNR %.3f",
+                    n,
+                    len(selected),
+                    tilt.stem,
+                    tilt.tilt.angle,
+                    tilt.tilt.pre_exposure,
+                    p.resolution,
+                    p.theta_step,
+                    p.psi_step,
+                    p.n_defocus,
+                    p.defocus_step,
+                    p.relative_snr,
+                )
+                peaks_path.unlink(missing_ok=True)
+                pending.append(pool.submit(search, n, tilt))
+        done, not_done = wait(pending, return_when=FIRST_EXCEPTION)
+        failed = [f for f in done if f.exception() is not None]
+        if failed:
+            for future in not_done:
+                future.cancel()
+            raise failed[0].exception()  # type: ignore[misc]
 
     picks = collect_picks(plan, output)
     write_picks(picks, output / PICKS_FILE)

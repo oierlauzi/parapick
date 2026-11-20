@@ -383,3 +383,18 @@ def test_extract_peaks_from_results(tmp_path, monkeypatch):
     assert peaks["score"].iloc[0] > peaks["score"].iloc[1] > 10
     z = extract_peaks(tmp_path, tilt, PickingSettings("zscore", 1), half_box=16)
     assert (z["pos_x_img"].iloc[0], z["pos_y_img"].iloc[0]) == (56, 46)
+
+
+def test_automatic_batch_size_follows_the_image_size():
+    from parapick.matching import leopard
+
+    assert 180 <= leopard.automatic_batch_size((928, 960)) <= 220  # binned by 4
+    assert 10 <= leopard.automatic_batch_size((3710, 3838)) <= 16  # full size
+    assert leopard.automatic_batch_size((10, 10)) == leopard.MAX_BATCH_SIZE
+    assert leopard.automatic_batch_size((100000, 100000)) == 1
+
+
+def test_leopard_config_uses_the_batched_backend(tmp_path):
+    tilt = plan_matching(TomogramSet.of([_relion_tilt_series()]), particle_diameter=250.0)[0]
+    config = leopard_config(tilt, template=tmp_path / "t.mrc", result=tmp_path / "r.h5")
+    assert config["computational_config"]["backend"] == "batched"

@@ -19,7 +19,11 @@ All notable changes to this project are documented here. The format follows
   predicted SNR; runs resume. `--binning N` searches the tilts binned by Fourier cropping
   (the template is binned too if given at the native pixel size; picks stay in native
   pixels). `--sampling fast` keeps the steps proportional to the resolution of each tilt,
-  uncapped, with the fewest defocus planes covering the range. Peaks are kept down to one
+  uncapped, with the fewest defocus planes covering the range. Searches use Leopard-EM's
+  batched backend with an orientation batch sized for about 4 GB of GPU memory, and
+  `--concurrent-searches K` (default 3) runs several tilts at once, each in its own process,
+  so that Leopard-EM's start-up of each search overlaps with the others: 4.3x faster on
+  binned tilts (EMPIAR-10499, bin 4: 41 tilts in 10 min instead of 42), same results. Peaks are kept down to one
   resolution element of each tilt apart, not the particle size, since particles overlap in
   projection. `--score mip` ranks peaks by the best correlation normalised over the image
   instead of Leopard-EM's z-score, whose normalisation over the orientations removes the

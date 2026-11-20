@@ -170,7 +170,9 @@ def leopard_config(
         },
         **tilt.parameters.leopard(falloff=c.falloff, whitening_max_freq=c.whitening_max_freq),
         "match_template_result": {"hdf5_path": str(result.resolve()), "allow_file_overwrite": True},
-        "computational_config": {"gpu_ids": gpu_ids},
+        # Batched: the GPU stays busy on small (e.g. binned) images, where the streamed backend
+        # spends most of the time launching kernels
+        "computational_config": {"gpu_ids": gpu_ids, "backend": "batched"},
     }
     config["orientation_search_config"]["symmetry"] = symmetry
     return config
