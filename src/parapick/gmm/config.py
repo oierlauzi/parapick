@@ -32,7 +32,10 @@ class LocalizeConfig:
     init_sigma_fraction
         Fraction of the box size used when ``init_sigma`` is ``None``.
     min_sigma
-        Lower bound for the per-tilt standard deviations.
+        Lower bound for the per-tilt standard deviations (Å). ``None``: the rounding error of
+        a pick on the pixel grid of the images it was made on, ``pixel_size / √12``. Without a
+        bound, the deviation of a tilt can collapse to zero once the annealing floor has
+        decayed; that tilt then dominates and the fit oscillates instead of converging.
     max_iterations
         Maximum number of EM iterations.
     tolerance
@@ -66,7 +69,7 @@ class LocalizeConfig:
     alpha: float = 0.5
     init_sigma: float | None = None
     init_sigma_fraction: float = 0.05
-    min_sigma: float = 0.0
+    min_sigma: float | None = None
     max_iterations: int = 500
     tolerance: float = 0.1
     sinkhorn_iterations: int = 16
@@ -83,7 +86,7 @@ class LocalizeConfig:
             "alpha": self.alpha > 0,
             "init_sigma": self.init_sigma is None or self.init_sigma > 0,
             "init_sigma_fraction": self.init_sigma_fraction > 0,
-            "min_sigma": self.min_sigma >= 0,
+            "min_sigma": self.min_sigma is None or self.min_sigma >= 0,
             "max_iterations": self.max_iterations >= 1,
             "tolerance": self.tolerance >= 0,
             "sinkhorn_iterations": self.sinkhorn_iterations >= 1,
@@ -115,4 +118,10 @@ class LocalizeConfig:
         """Initial standard deviation for a given initialisation box."""
         if self.init_sigma is not None:
             return self.init_sigma
-        return max(self.init_sigma_fraction * max(box), self.min_sigma)
+        return max(self.init_sigma_fraction * max(box), self.min_sigma or 0.0)
+
+    def resolve_min_sigma(self, pick_pixel_size: float) -> float:
+        """Lower bound of the per-tilt standard deviations, given the picks' pixel size."""
+        if self.min_sigma is not None:
+            return self.min_sigma
+        return pick_pixel_size / math.sqrt(12.0)  # Rounding to the pixel grid
