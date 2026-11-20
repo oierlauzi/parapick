@@ -51,7 +51,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 - `localize` converges: the per-tilt σ is bounded below by default by the rounding error of the
   picks on their pixel grid, `pixel_size / √12` (the pixel size of the picked images:
-  `rlnMicrographPixelSize`, `--pixel-size` or the tilt-series'). The bound was 0, so once the
+  `rlnMicrographPixelSize`, `--picks-pixel-size` or the tilt-series'). The bound was 0, so once the
   annealing floor had decayed, the σ of one tilt could collapse to zero; that tilt then
   dominated and the fit oscillated (mean displacement of about 30 Å) until `--max-iterations`.
   On EMPIAR-10499 the fits now converge in 110–180 iterations instead of never, and keep about
