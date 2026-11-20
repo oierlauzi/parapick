@@ -142,7 +142,9 @@ class EMFitter:
         placement = (
             jax.default_device(self.device) if self.device is not None else contextlib.nullcontext()
         )
-        with placement:
+        # Full precision: on recent GPUs, matrix products default to TF32 (about 1e-3 relative
+        # error), a noise of several Å on the means that keeps the fit from converging.
+        with placement, jax.default_matmul_precision("highest"):
             state = self._run(padded, means0, sigma0, min_sigma)
 
         active = np.isfinite(np.asarray(state.log_weights))

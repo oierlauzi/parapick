@@ -56,6 +56,9 @@ All notable changes to this project are documented here. The format follows
   dominated and the fit oscillated (mean displacement of about 30 Å) until `--max-iterations`.
   On EMPIAR-10499 the fits now converge in 110–180 iterations instead of never, and keep about
   twice the particles. `--min-sigma` still overrides the bound (0 restores the old behaviour).
+- `localize` converges on GPUs: the EM uses full float32 matrix products. JAX's GPU default
+  (TF32, about 1e-3 relative error) put several Å of noise on the means every iteration, above
+  the convergence tolerance. On an RTX PRO 4500 a tilt-series now converges in 3–5 s.
 - Piping CLI output into a command that closes early (e.g. `parapick formats | head -1`) no
   longer logs `[Errno 32] Broken pipe`.
 

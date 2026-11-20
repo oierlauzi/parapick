@@ -112,6 +112,8 @@ def configure_jax(device: str, x64: bool) -> None:
     """Select the JAX backend and precision. Must run before any JAX computation."""
     import jax
 
+    # TF32 matrix products (the GPU default) are too coarse for the EM to converge
+    jax.config.update("jax_default_matmul_precision", "highest")
     if x64:
         jax.config.update("jax_enable_x64", True)
     if device == "cpu":
