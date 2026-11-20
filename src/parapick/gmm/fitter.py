@@ -60,6 +60,7 @@ class Fitter(Protocol):
         box: tuple[float, float, float],
         *,
         seed: int = 0,
+        min_sigma: float | None = None,
     ) -> GMMFit:
         """Fit the model.
 
@@ -73,6 +74,8 @@ class Fitter(Protocol):
             Size of the initialisation box in Å, centred on the origin.
         seed
             Seed of the random initialisation.
+        min_sigma
+            Lower bound of the per-tilt standard deviations (Å). Overrides the configuration.
         """
         ...
 
@@ -109,6 +112,7 @@ class EMFitter:
         box: tuple[float, float, float],
         *,
         seed: int = 0,
+        min_sigma: float | None = None,
     ) -> GMMFit:
         """Fit the mixture. See :meth:`Fitter.fit`."""
         config = self.config
@@ -138,8 +142,10 @@ class EMFitter:
         placement = (
             jax.default_device(self.device) if self.device is not None else contextlib.nullcontext()
         )
-        with placement:
-            state = self._run(padded, means0, sigma0)
+        # Full precision: on recent GPUs, matrix products default to TF32 (about 1e-3 relative
+        # error), a noise of several Å on the means that keeps the fit from converging.
+        with placement, jax.default_matmul_precision("highest"):
+            state = self._run(padded, means0, sigma0, min_sigma)
 
         active = np.isfinite(np.asarray(state.log_weights))
         sigmas = np.sqrt(np.asarray(state.sigma2, dtype=np.float64)[:n_tilts])
@@ -165,6 +171,7 @@ class EMFitter:
         padded: PaddedDetections,
         means0: NDArray[np.float64],
         sigma0: float,
+        min_sigma: float | None = None,
     ) -> em.EMState:
         config = self.config
         dtype = jnp.result_type(float)
@@ -179,7 +186,10 @@ class EMFitter:
             alpha=jnp.asarray(config.alpha, dtype=dtype),
             tolerance=jnp.asarray(config.tolerance, dtype=dtype),
             regularization=jnp.asarray(config.regularization, dtype=dtype),
-            min_sigma2=jnp.asarray(config.min_sigma**2, dtype=dtype),
+            min_sigma2=jnp.asarray(
+                (min_sigma if min_sigma is not None else config.min_sigma or 0.0) ** 2,
+                dtype=dtype,
+            ),
             annealing=jnp.asarray(config.annealing, dtype=dtype),
         )
         background = config.background_fraction

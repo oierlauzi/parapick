@@ -99,9 +99,67 @@ them.
 | `filter`        | Select particles by score, support or rank. |
 | `evaluate`      | Precision, recall, F1 and RMSE against a reference set. |
 | `simulate`      | Generate a synthetic dataset (geometry, ground truth, noisy picks). |
+| `match-template`| *Optional:* pick every tilt image by 2D template matching with Leopard-EM (see below). |
 | `formats`       | List the available file formats, including installed plug-ins. |
 
 Common options: `--device {auto,cpu,gpu}`, `--x64`, `-v`/`-q`.
+
+### Picking by 2D template matching (optional)
+
+With [Leopard-EM](https://github.com/Lucaslab-Berkeley/Leopard-EM) installed
+(`pip install "parapick[leopard]"`, Python ≥ 3.12), `match-template` searches every tilt image
+for a template and writes the peaks as picks for `localize`:
+
+```bash
+parapick match-template --tomograms tomograms.star --template ribosome_1.7A.mrc \
+    --particle-diameter 250 -o match/
+parapick localize --tomograms match/tomograms.star --picks match/picks.star -o localize/
+```
+
+2DTM is tuned for single, untilted, high-dose images, so the parameters of each tilt are
+derived from its acquisition (`parapick.matching.schedule`):
+
+- **low-pass** where the dose received before the tilt has destroyed more signal than noise
+  (radiation damage model of Grant & Grigorieff, 2015), plus a high-pass well below the
+  particle size;
+- **angular and defocus steps** coarser as the remaining resolution drops (never finer than
+  Leopard-EM's defaults);
+- **defocus range** covering the tilted plane across the field of view and the thickness of
+  the sample.
+
+Everything is inferred from `tomograms.star`: the dose and acquisition order from
+`rlnMicrographPreExposure`, the CTF of each tilt from `rlnDefocusU/V/Angle`, the angle of the
+sample (pre-tilt included) and the direction of its defocus gradient from the geometry, and
+the thickness from the tomogram size. Only the particle diameter is required; `--thickness`
+and `--dose-per-tilt` override the inferred values. The template must be at the pixel size of
+the tilt-series. `match/schedule.csv` lists the parameters and predicted SNR of every tilt;
+`--max-tilts N` searches only the N best tilts of each tilt-series (usually the first
+acquired), and `--schedule-only` writes the Leopard-EM configurations without searching. Runs
+resume tilt by tilt. The derived parameters are a principled starting point, not validated
+settings.
+
+**Speed.** A full-size 4k tilt with the default sampling takes on the order of days of GPU
+time. For locations (not poses) on many tilts, whose detections `localize` combines,
+`--binning N` searches the tilts binned (the template may be given at either pixel size;
+picks stay in native pixels) and `--sampling fast` keeps the angular and defocus steps
+proportional to the resolution left in each tilt instead of capping them at 4°/3° and 500 Å.
+Binning by 4 with `--sampling fast` is two orders of magnitude cheaper than the default. Since
+`localize` tolerates false positives on single tilts, a `--false-positives` well above 1 keeps
+more true particles. On low-dose tilts, a particle correlates about equally at every
+orientation, and Leopard-EM's z-score (normalised over the orientations at each pixel) loses
+it: `--score mip --peaks-per-tilt N` ranks the peaks by the best correlation instead and keeps
+the N best of each tilt. Changing only the picking re-reads the results without searching.
+
+The template matching itself is done by Leopard-EM, developed by the Lucas lab (UC Berkeley,
+BSD-3-Clause licence); ParaPick only derives its parameters for tilt-series. If you use
+`match-template`, please cite Leopard-EM, and Grant & Grigorieff for the damage model:
+
+- Giammar MD, Dickerson JL, Hall LN, Lucas BA (2026). Leopard-EM: an extensible 2D
+  template-matching package to accelerate in situ structural biology. *Acta Cryst. D* 82,
+  30–42. https://doi.org/10.1107/S2059798325009982
+- Grant T, Grigorieff N (2015). Measuring the optimal exposure for single particle cryo-EM
+  using a 2.6 Å reconstruction of rotavirus VP6. *eLife* 4, e06980.
+  https://doi.org/10.7554/eLife.06980
 
 ## Quick start (Python)
 
@@ -125,6 +183,7 @@ The packages are layered and can be used on their own:
 |-----------------------|----------|
 | `parapick.tomography` | Format-neutral data model: `TiltSeries` (one affine projection per tilt), `PickTable`, `Particles`, pick-to-tilt matching. |
 | `parapick.gmm`        | The JAX numerics: `EMFitter`, `LocalizeConfig`, initialisers, capped Sinkhorn, EM step. NumPy in, NumPy out. |
+| `parapick.matching`   | Per-tilt 2D template matching parameters (numpy/scipy) and the optional Leopard-EM runner. |
 | `parapick.formats`    | Format plug-ins and their registry (RELION 5, RELION coordinates, Topaz). |
 | `parapick.workflows`  | Use cases: `localize`, `project_particles`, `evaluate`, `simulate`, ... |
 | `parapick.cli`        | The thin `argparse` layer. |

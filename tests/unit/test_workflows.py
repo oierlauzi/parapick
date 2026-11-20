@@ -23,6 +23,8 @@ from parapick.workflows import (
     simulate,
 )
 
+from helpers.factories import make_tilt_series
+
 
 def test_tilt_key_variants():
     assert tilt_key_variants("3@dir/TS_01_-21.00.mrcs") == (
@@ -52,6 +54,7 @@ def test_bind_picks_matching_rules(tomograms, caplog):
     assert "unknown.mrc" in report.unmatched_examples
     np.testing.assert_array_equal(bound["TS_01"].tilt_indices, [0, 1, 2])
     np.testing.assert_allclose(bound["TS_01"].coordinates, 2.0)
+    assert bound["TS_01"].pixel_size == 2.0  # the precision of the picks
     assert len(bound["TS_02"]) == 0
     per_tilt = bound["TS_01"].per_tilt(ts.n_tilts)
     assert [len(p) for p in per_tilt[:4]] == [1, 1, 1, 0]
@@ -163,3 +166,36 @@ def test_simulation_is_deterministic_and_consistent():
         np.testing.assert_allclose(distances, 0.0, atol=1e-9)
     with pytest.raises(ValueError, match="recall"):
         SimulationConfig(recall=0.0)
+
+
+class _RecordingFitter:
+    """Fitter that records the per-tilt sigma bound it is given and finds nothing."""
+
+    def __init__(self):
+        self.min_sigma = "unset"
+
+    def fit(self, detections, projections, box, *, seed=0, min_sigma=None):
+        from parapick.gmm.fitter import EMFitter
+
+        self.min_sigma = min_sigma
+        return EMFitter._empty(len(detections))
+
+
+@pytest.mark.parametrize(
+    ("config_min_sigma", "pick_pixel_size", "expected"),
+    [(None, 6.8, 6.8 / 12**0.5), (2.5, 6.8, 2.5), (0.0, 6.8, 0.0), (None, None, 10.0 / 12**0.5)],
+)
+def test_sigma_floor_defaults_to_the_pick_pixel_size(config_min_sigma, pick_pixel_size, expected):
+    from parapick.gmm import LocalizeConfig
+    from parapick.tomography import BoundPicks
+    from parapick.workflows import localize_tilt_series
+
+    ts = make_tilt_series()  # 10 A/px
+    picks = BoundPicks(
+        ts.name, np.zeros(1, dtype=np.intp), np.zeros((1, 2)), pixel_size=pick_pixel_size
+    )
+    fitter = _RecordingFitter()
+    localize_tilt_series(
+        ts, picks, config=LocalizeConfig(min_sigma=config_min_sigma), fitter=fitter
+    )
+    assert fitter.min_sigma == pytest.approx(expected)

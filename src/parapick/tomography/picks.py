@@ -130,6 +130,9 @@ class BoundPicks:
     rows
         Optional ``(M,)`` row of each pick in the :class:`PickTable` it was read from, so that
         results can be traced back to the input picks.
+    pixel_size
+        Pixel size (Å/px) of the images the picks were made on, if known: their coordinates
+        are no more precise than that.
     """
 
     tilt_series: str
@@ -137,6 +140,7 @@ class BoundPicks:
     coordinates: NDArray[np.float64]
     scores: NDArray[np.float64] | None = None
     rows: NDArray[np.intp] | None = None
+    pixel_size: float | None = None
 
     def __len__(self) -> int:
         return int(self.coordinates.shape[0])

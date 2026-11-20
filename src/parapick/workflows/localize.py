@@ -198,8 +198,10 @@ def localize_tilt_series(
     # Remove each tilt's translation: ŷ_ij = y_ij - t_i.
     detections = [d - t for d, t in zip(per_tilt, tilt_series.translations, strict=True)]
     box = _resolve_box(tilt_series, detections, config)
+    min_sigma = config.resolve_min_sigma(picks.pixel_size or tilt_series.pixel_size)
+    logger.debug("%s: per-tilt sigma >= %.2f A", tilt_series.name, min_sigma)
     start = time.perf_counter()
-    fit = fitter.fit(detections, tilt_series.projections, box, seed=seed)
+    fit = fitter.fit(detections, tilt_series.projections, box, seed=seed, min_sigma=min_sigma)
     elapsed = time.perf_counter() - start
     counts = np.array([len(d) for d in per_tilt], dtype=np.intp)
     logger.info(

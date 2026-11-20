@@ -27,7 +27,11 @@ class CommandError(RuntimeError):
 
 @runtime_checkable
 class Command(Protocol):
-    """A ``parapick`` sub-command."""
+    """A ``parapick`` sub-command.
+
+    A command may set ``uses_jax = False`` to skip the set-up of JAX (and its allocation of
+    GPU memory), e.g. when it runs another GPU program.
+    """
 
     name: str
     help: str
@@ -108,6 +112,8 @@ def configure_jax(device: str, x64: bool) -> None:
     """Select the JAX backend and precision. Must run before any JAX computation."""
     import jax
 
+    # TF32 matrix products (the GPU default) are too coarse for the EM to converge
+    jax.config.update("jax_default_matmul_precision", "highest")
     if x64:
         jax.config.update("jax_enable_x64", True)
     if device == "cpu":

@@ -142,7 +142,10 @@ class LocalizeCommand:
             type=float,
             default=_DEFAULTS.min_sigma,
             metavar="ANGST",
-            help="Lower bound of the per-tilt sigma.",
+            help="Lower bound of the per-tilt sigma (default: the rounding error of the picks, "
+            "pixel size / sqrt(12), with the pixel size of the picked images: "
+            "rlnMicrographPixelSize or the tilt-series'). 0 lets a tilt's sigma collapse, after "
+            "which the fit oscillates instead of converging.",
         )
         background = model.add_mutually_exclusive_group()
         background.add_argument(

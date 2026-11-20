@@ -22,3 +22,35 @@ keywords:
   - tomography
   - particle picking
   - subtomogram averaging
+references:
+  # Optional: match-template runs Leopard-EM; cite it when you use that command.
+  - type: article
+    title: "Leopard-EM: an extensible 2D template-matching package to accelerate in situ structural biology"
+    authors:
+      - family-names: "Giammar"
+        given-names: "Matthew D."
+      - family-names: "Dickerson"
+        given-names: "Joshua L."
+      - family-names: "Hall"
+        given-names: "Laina N."
+      - family-names: "Lucas"
+        given-names: "Bronwyn A."
+    journal: "Acta Crystallographica Section D: Structural Biology"
+    volume: 82
+    issue: 1
+    start: 30
+    end: 42
+    year: 2026
+    doi: "10.1107/S2059798325009982"
+  - type: article
+    title: "Measuring the optimal exposure for single particle cryo-EM using a 2.6 Å reconstruction of rotavirus VP6"
+    authors:
+      - family-names: "Grant"
+        given-names: "Timothy"
+      - family-names: "Grigorieff"
+        given-names: "Nikolaus"
+    journal: "eLife"
+    volume: 4
+    start: e06980
+    year: 2015
+    doi: "10.7554/eLife.06980"

@@ -7,6 +7,33 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `match-template` (optional, `pip install "parapick[leopard]"`, Python ≥ 3.12): 2D template
+  matching of every tilt image with [Leopard-EM](https://github.com/Lucaslab-Berkeley/Leopard-EM),
+  with the parameters of each tilt inferred from the acquisition. The low-pass follows the
+  dose received before the tilt (Grant & Grigorieff, 2015), the angular and defocus steps the
+  resolution left, and the defocus range the tilt of the sample. The dose and acquisition
+  order come from `rlnMicrographPreExposure`, the CTF from `rlnDefocusU/V/Angle`, and the
+  angle of the sample (pre-tilt included) and direction of its defocus gradient from the
+  geometry. Writes `schedule.csv`, one Leopard-EM configuration and result per tilt, and the
+  peaks as `picks.star` for `localize`. `--max-tilts` searches only the tilts with the highest
+  predicted SNR; runs resume. `--binning N` searches the tilts binned by Fourier cropping
+  (the template is binned too if given at the native pixel size; picks stay in native
+  pixels). `--sampling fast` keeps the steps proportional to the resolution of each tilt,
+  uncapped, with the fewest defocus planes covering the range. Searches use Leopard-EM's
+  batched backend with an orientation batch sized for about 4 GB of GPU memory, and
+  `--concurrent-searches K` (default 3) runs several tilts at once, each in its own process,
+  so that Leopard-EM's start-up of each search overlaps with the others: 4.3x faster on
+  binned tilts (EMPIAR-10499, bin 4: 41 tilts in 10 min instead of 42), same results. Peaks are kept down to one
+  resolution element of each tilt apart, not the particle size, since particles overlap in
+  projection. `--score mip` ranks peaks by the best correlation normalised over the image
+  instead of Leopard-EM's z-score, whose normalisation over the orientations removes the
+  signal of particles that correlate at every orientation (low-dose, binned tilts);
+  `--peaks-per-tilt N` keeps the N best peaks of each tilt. Changing only the picking re-reads
+  the results of the searched tilts, without searching again. The command is only
+  registered when Leopard-EM is installed.
+  In Python: `parapick.matching` (the schedule needs only numpy and scipy). Leopard-EM
+  (Giammar et al., 2026) is credited in the README, `CITATION.cff`, the command's help and
+  its log.
 - Pick assignments: `localize --write-assignments` writes `assignments.star`, which lists the
   2D picks each particle explains (at most one per tilt), with their input row
   (`ppkPickIndex`), responsibility and residual. `--assignment-threshold` (default 0.5) sets
@@ -26,6 +53,16 @@ All notable changes to this project are documented here. The format follows
 - Requires vitrio ≥ 0.2.0.
 
 ### Fixed
+- `localize` converges: the per-tilt σ is bounded below by default by the rounding error of the
+  picks on their pixel grid, `pixel_size / √12` (the pixel size of the picked images:
+  `rlnMicrographPixelSize`, `--picks-pixel-size` or the tilt-series'). The bound was 0, so once the
+  annealing floor had decayed, the σ of one tilt could collapse to zero; that tilt then
+  dominated and the fit oscillated (mean displacement of about 30 Å) until `--max-iterations`.
+  On EMPIAR-10499 the fits now converge in 110–180 iterations instead of never, and keep about
+  twice the particles. `--min-sigma` still overrides the bound (0 restores the old behaviour).
+- `localize` converges on GPUs: the EM uses full float32 matrix products. JAX's GPU default
+  (TF32, about 1e-3 relative error) put several Å of noise on the means every iteration, above
+  the convergence tolerance. On an RTX PRO 4500 a tilt-series now converges in 3–5 s.
 - Piping CLI output into a command that closes early (e.g. `parapick formats | head -1`) no
   longer logs `[Errno 32] Broken pipe`.
 

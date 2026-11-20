@@ -208,6 +208,7 @@ def bind_picks(
             coordinates=coordinates * scale,
             scores=None if picks.scores is None else picks.scores[rows],
             rows=rows,
+            pixel_size=scale,
         )
     return bound, report
 

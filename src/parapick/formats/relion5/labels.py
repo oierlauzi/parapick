@@ -28,6 +28,12 @@ Z_ROT = "rlnTomoZRot"
 X_SHIFT_ANGST = "rlnTomoXShiftAngst"
 Y_SHIFT_ANGST = "rlnTomoYShiftAngst"
 NOMINAL_TILT = "rlnTomoNominalStageTiltAngle"
+PRE_EXPOSURE = "rlnMicrographPreExposure"
+"""Dose received before the tilt image was acquired (e/Å²)."""
+DEFOCUS_U = "rlnDefocusU"
+DEFOCUS_V = "rlnDefocusV"
+DEFOCUS_ANGLE = "rlnDefocusAngle"
+PHASE_SHIFT = "rlnPhaseShift"
 
 # -- 2D picks (SPA coordinate convention) ------------------------------------------------ #
 COORDINATE_X = "rlnCoordinateX"
