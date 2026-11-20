@@ -10,6 +10,7 @@ from pathlib import Path
 
 from parapick.cli.base import add_tomograms_arguments, read_options_from
 from parapick.formats import FormatRegistry
+from parapick.matching.peaks import SCORES
 from parapick.matching.schedule import SAMPLINGS
 
 __all__ = ["MatchTemplateCommand"]
@@ -128,6 +129,23 @@ class MatchTemplateCommand:
             "true particles (default: 1).",
         )
         search.add_argument(
+            "--score",
+            choices=SCORES,
+            default="zscore",
+            help="Score of the peaks. 'zscore': Leopard-EM's (best correlation normalised over "
+            "the orientations at each pixel). 'mip': the best correlation normalised over the "
+            "image, which keeps the signal of particles that correlate at every orientation, "
+            "as on low-dose binned tilts; needs --peaks-per-tilt (default: zscore).",
+        )
+        search.add_argument(
+            "--peaks-per-tilt",
+            type=int,
+            metavar="N",
+            help="Keep the N best peaks of each tilt instead of thresholding them for "
+            "--false-positives. Changing the picking only re-reads the results of the tilts "
+            "already searched.",
+        )
+        search.add_argument(
             "--orientation-batch-size",
             type=int,
             default=16,
@@ -161,6 +179,8 @@ class MatchTemplateCommand:
             max_tilts=args.max_tilts,
             tilt_series=args.tilt_series,
             false_positives=args.false_positives,
+            score=args.score,
+            peaks_per_tilt=args.peaks_per_tilt,
             symmetry=args.symmetry,
             device=args.device,
             orientation_batch_size=args.orientation_batch_size,

@@ -40,12 +40,13 @@ import pandas as pd
 from parapick.formats import AUTO, FormatRegistry, TomogramsReadOptions, default_registry
 from parapick.formats.relion5.picks import write_picks
 from parapick.matching import leopard
+from parapick.matching.peaks import PickingSettings, find_peaks, gaussian_threshold, score_map
 from parapick.matching.plan import PlannedTilt, leopard_config, plan_matching, schedule_table
 from parapick.matching.schedule import SAMPLINGS, ScheduleConstants
 from parapick.tomography import PickTable
 from parapick.workflows.unstack import unstack
 
-__all__ = ["MatchTemplateResult", "collect_picks", "run_match_template"]
+__all__ = ["MatchTemplateResult", "collect_picks", "extract_peaks", "run_match_template"]
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,11 @@ RESULTS_DIRECTORY = "results"
 PEAKS_DIRECTORY = "peaks"
 BINNED_DIRECTORY = "binned"
 SETTINGS_FILE = "settings.json"
-SCORE_COLUMN = "scaled_mip"
-"""Leopard-EM's z-score of a peak, used as the score of the pick."""
+PICKING_FILE = "picking.json"
+SCORE_COLUMN = "score"
+"""Score of a peak (see :mod:`parapick.matching.peaks`), used as the score of the pick."""
+LEGACY_SCORE_COLUMN = "scaled_mip"
+DONE_SUFFIX = ".done"
 PIXEL_SIZE_TOLERANCE = 0.01
 
 
@@ -90,7 +94,8 @@ def collect_picks(plan: Sequence[PlannedTilt], output: Path) -> PickTable:
         tilt_ids += [tilt.tilt_id] * len(peaks)
         position = peaks[["pos_x_img", "pos_y_img"]].to_numpy(dtype=np.float64)
         coordinates.append(position * tilt.binning)
-        scores.append(peaks[SCORE_COLUMN].to_numpy(dtype=np.float64))
+        column = SCORE_COLUMN if SCORE_COLUMN in peaks else LEGACY_SCORE_COLUMN
+        scores.append(peaks[column].to_numpy(dtype=np.float64))
     return PickTable(
         tilt_ids=np.array(tilt_ids, dtype=object),
         coordinates=np.concatenate(coordinates) if coordinates else np.empty((0, 2)),
@@ -140,6 +145,62 @@ def _check_settings(output: Path, settings: dict[str, object], overwrite: bool) 
     path.write_text(json.dumps(settings))
 
 
+def _result_path(output: Path, tilt: PlannedTilt) -> Path:
+    return output / RESULTS_DIRECTORY / f"{tilt.stem}.h5"
+
+
+def _searched(output: Path, tilt: PlannedTilt) -> bool:
+    """Whether the search of a tilt finished (older runs only left their peaks)."""
+    result = _result_path(output, tilt)
+    done = result.with_suffix(DONE_SUFFIX).exists() or _peaks_path(output, tilt).exists()
+    return done and result.exists()
+
+
+def _picking_changed(output: Path, picking: PickingSettings) -> bool:
+    """Record the picking settings; whether the existing peaks may have been picked otherwise.
+
+    Picking again only reads the results, so runs that did not record them are picked again.
+    """
+    path = output / PICKING_FILE
+    previous = json.loads(path.read_text()) if path.exists() else None
+    current = picking.as_dict()
+    output.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(current))
+    return previous != current
+
+
+def extract_peaks(
+    output: Path, tilt: PlannedTilt, picking: PickingSettings, half_box: int
+) -> pd.DataFrame:
+    """Peaks of a searched tilt, from its results (pixels of the searched image)."""
+    tensors, projections = leopard.read_results(_result_path(output, tilt))
+    values = score_map(picking.score, mip=tensors["mip"], scaled_mip=tensors["scaled_mip"])
+    threshold = (
+        gaussian_threshold(values.size * projections, picking.false_positives)
+        if picking.peaks_per_tilt is None
+        else None
+    )
+    rows, cols = find_peaks(
+        values, separation=tilt.peak_separation, threshold=threshold, count=picking.peaks_per_tilt
+    )
+    peaks = pd.DataFrame(
+        {
+            "pos_x_img": cols + half_box,
+            "pos_y_img": rows + half_box,
+            SCORE_COLUMN: values[rows, cols],
+            **{name: tensors[name][rows, cols] for name in leopard.RESULT_TENSORS},
+        }
+    )
+    return peaks
+
+
+def _write_peaks(peaks: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".csv.tmp")
+    peaks.to_csv(temporary, index=False)
+    temporary.replace(path)
+
+
 def run_match_template(
     tomograms_path: Path,
     template: Path,
@@ -152,6 +213,8 @@ def run_match_template(
     max_tilts: int | None = None,
     tilt_series: Sequence[str] | None = None,
     false_positives: float = 1.0,
+    score: str = "zscore",
+    peaks_per_tilt: int | None = None,
     symmetry: str = "C1",
     device: str = "auto",
     orientation_batch_size: int = 16,
@@ -188,7 +251,13 @@ def run_match_template(
     tilt_series
         Only these tilt-series (default: all).
     false_positives
-        Expected false positives per image when thresholding the peaks.
+        Expected false positives per image when thresholding the peaks (``zscore``).
+    score
+        Score of the peaks: ``zscore`` (Leopard-EM's) or ``mip`` (the best correlation,
+        normalised over the image), see :mod:`parapick.matching.peaks`.
+    peaks_per_tilt
+        Keep the best N peaks of each tilt instead of thresholding (required with ``mip``).
+        Changing the picking alone re-extracts the peaks from the results, without searching.
     symmetry
         Symmetry of the template (e.g. ``C1``, ``D7``), to restrict the search.
     device
@@ -225,6 +294,7 @@ def run_match_template(
         raise ValueError("All tilt-series must have the same pixel size (one template)")
     output = output_directory
     _check_settings(output, {"binning": binning, "sampling": sampling}, overwrite)
+    picking = PickingSettings(score, peaks_per_tilt, false_positives)
     template = _prepare_template(template, pixel_size, binning, output)
 
     # Leopard-EM reads 2D MRC files: link or extract the tilt images
@@ -276,38 +346,44 @@ def run_match_template(
     if schedule_only:
         return MatchTemplateResult(tuple(plan), None, output)
 
+    repick = _picking_changed(output, picking) or overwrite
+    half_box = leopard.template_box(template) // 2
     for n, tilt in enumerate(selected, start=1):
         peaks_path = _peaks_path(output, tilt)
-        if peaks_path.exists() and not overwrite:
+        searched = _searched(output, tilt) and not overwrite
+        if searched and peaks_path.exists() and not repick:
             logger.info("[%d/%d] %s: already searched", n, len(selected), tilt.stem)
             continue
-        p = tilt.parameters
+        if not searched:
+            p = tilt.parameters
+            logger.info(
+                "[%d/%d] %s: %.0f° tilt, %.1f e/Å² before, %.1f Å, %.2f/%.2f° steps, "
+                "%d defoci of %.0f Å, relative SNR %.3f",
+                n,
+                len(selected),
+                tilt.stem,
+                tilt.tilt.angle,
+                tilt.tilt.pre_exposure,
+                p.resolution,
+                p.theta_step,
+                p.psi_step,
+                p.n_defocus,
+                p.defocus_step,
+                p.relative_snr,
+            )
+            peaks_path.unlink(missing_ok=True)
+            leopard.run_search(configs[tilt.stem], orientation_batch_size=orientation_batch_size)
+            _result_path(output, tilt).with_suffix(DONE_SUFFIX).touch()
+        peaks = extract_peaks(output, tilt, picking, half_box)
+        _write_peaks(peaks, peaks_path)
         logger.info(
-            "[%d/%d] %s: %.0f° tilt, %.1f e/Å² before, %.1f Å, %.2f/%.2f° steps, "
-            "%d defoci of %.0f Å, relative SNR %.3f",
+            "[%d/%d] %s: %d peaks%s",
             n,
             len(selected),
             tilt.stem,
-            tilt.tilt.angle,
-            tilt.tilt.pre_exposure,
-            p.resolution,
-            p.theta_step,
-            p.psi_step,
-            p.n_defocus,
-            p.defocus_step,
-            p.relative_snr,
+            len(peaks),
+            " (picked again)" if searched else "",
         )
-        peaks = leopard.run_match_template(
-            configs[tilt.stem],
-            orientation_batch_size=orientation_batch_size,
-            false_positives=false_positives,
-            mask_radius=tilt.peak_separation,
-        )
-        peaks_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = peaks_path.with_suffix(".csv.tmp")
-        peaks.to_csv(temporary, index=False)
-        temporary.replace(peaks_path)  # Written last: marks the tilt as searched
-        logger.info("%s: %d peaks", tilt.stem, len(peaks))
 
     picks = collect_picks(plan, output)
     write_picks(picks, output / PICKS_FILE)

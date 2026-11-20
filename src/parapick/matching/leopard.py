@@ -14,13 +14,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 __all__ = [
     "CITATION",
     "available",
     "gpu_ids_for",
-    "run_match_template",
+    "read_results",
+    "run_search",
+    "template_box",
     "template_pixel_size",
     "write_binned",
     "write_config",
@@ -87,19 +87,8 @@ def write_config(config: dict[str, Any], path: Path) -> None:
     MatchTemplateManager(**config).to_yaml(path)
 
 
-def run_match_template(
-    config_path: Path,
-    *,
-    orientation_batch_size: int,
-    false_positives: float,
-    mask_radius: float,
-) -> pd.DataFrame:
-    """Search one tilt image and return its peaks (Leopard-EM's table, one row per peak).
-
-    Peaks are thresholded by Leopard-EM for ``false_positives`` expected false positives on
-    the image, and those closer than ``mask_radius`` pixels to a higher one are dropped.
-    ``pos_x_img``/``pos_y_img`` are the particle centres in pixels of the image.
-    """
+def run_search(config_path: Path, *, orientation_batch_size: int) -> None:
+    """Search one tilt image and write Leopard-EM's results (the HDF5 file of the config)."""
     import torch
     from leopard_em.pydantic_models.managers import MatchTemplateManager
 
@@ -108,12 +97,36 @@ def run_match_template(
         manager.run_match_template(
             orientation_batch_size=orientation_batch_size, do_result_export=True
         )
-        peaks: pd.DataFrame = manager.results_to_dataframe(
-            locate_peaks_kwargs={"false_positives": false_positives, "mask_radius": mask_radius}
-        )
     finally:
         del manager
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    return peaks
+
+
+RESULT_TENSORS = (
+    "mip",
+    "scaled_mip",
+    "orientation_phi",
+    "orientation_theta",
+    "orientation_psi",
+    "relative_defocus",
+)
+
+
+def read_results(path: Path) -> tuple[dict[str, Any], int]:
+    """The result maps of a search (numpy arrays) and its number of projections."""
+    import h5py
+
+    with h5py.File(path, "r") as results:
+        tensors = {name: results["tensors"][name][()] for name in RESULT_TENSORS}
+        projections = int(results.attrs["total_projections"])
+    return tensors, projections
+
+
+def template_box(path: Path) -> int:
+    """Box size (pixels) of a template volume."""
+    import mrcfile
+
+    with mrcfile.open(path, header_only=True, permissive=True) as mrc:
+        return int(mrc.header.nx)

@@ -145,7 +145,10 @@ picks stay in native pixels) and `--sampling fast` keeps the angular and defocus
 proportional to the resolution left in each tilt instead of capping them at 4°/3° and 500 Å.
 Binning by 4 with `--sampling fast` is two orders of magnitude cheaper than the default. Since
 `localize` tolerates false positives on single tilts, a `--false-positives` well above 1 keeps
-more true particles.
+more true particles. On low-dose tilts, a particle correlates about equally at every
+orientation, and Leopard-EM's z-score (normalised over the orientations at each pixel) loses
+it: `--score mip --peaks-per-tilt N` ranks the peaks by the best correlation instead and keeps
+the N best of each tilt. Changing only the picking re-reads the results without searching.
 
 The template matching itself is done by Leopard-EM, developed by the Lucas lab (UC Berkeley,
 BSD-3-Clause licence); ParaPick only derives its parameters for tilt-series. If you use

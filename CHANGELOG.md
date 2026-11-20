@@ -21,7 +21,11 @@ All notable changes to this project are documented here. The format follows
   pixels). `--sampling fast` keeps the steps proportional to the resolution of each tilt,
   uncapped, with the fewest defocus planes covering the range. Peaks are kept down to one
   resolution element of each tilt apart, not the particle size, since particles overlap in
-  projection. The command is only
+  projection. `--score mip` ranks peaks by the best correlation normalised over the image
+  instead of Leopard-EM's z-score, whose normalisation over the orientations removes the
+  signal of particles that correlate at every orientation (low-dose, binned tilts);
+  `--peaks-per-tilt N` keeps the N best peaks of each tilt. Changing only the picking re-reads
+  the results of the searched tilts, without searching again. The command is only
   registered when Leopard-EM is installed.
   In Python: `parapick.matching` (the schedule needs only numpy and scipy). Leopard-EM
   (Giammar et al., 2026) is credited in the README, `CITATION.cff`, the command's help and

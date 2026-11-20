@@ -322,3 +322,64 @@ def test_peak_separation_is_one_resolution_element_not_the_particle_size():
             assert tilt.peak_separation >= 2.0  # Nyquist
     first = plan_matching(tomograms, particle_diameter=400.0)[0]
     assert first.peak_separation == pytest.approx(2.0)  # 4 Å at 2 Å/px, not 100 px
+
+
+# ------------------------------------------------------------------------------ picking
+def test_find_peaks_greedy_separation_count_and_threshold():
+    from parapick.matching.peaks import find_peaks
+
+    values = np.zeros((20, 20))
+    values[5, 5], values[5, 7], values[5, 10], values[15, 15] = 9.0, 8.0, 7.0, 6.0
+    rows, cols = find_peaks(values, separation=2.5)
+    assert list(zip(rows, cols, strict=True))[:2] == [(5, 5), (5, 10)]  # (5, 7) is 2 px away
+    rows, cols = find_peaks(values, separation=2.0)  # 2 px apart is allowed
+    assert (5, 7) in set(zip(rows, cols, strict=True))
+    assert len(find_peaks(values, separation=2.5, count=2)[0]) == 2
+    rows, _ = find_peaks(values, separation=2.5, threshold=6.5)
+    assert len(rows) == 2
+
+
+def test_picking_settings_and_scores():
+    from parapick.matching.peaks import (
+        PickingSettings,
+        gaussian_threshold,
+        robust_normalise,
+        score_map,
+    )
+
+    with pytest.raises(ValueError, match="peaks_per_tilt"):
+        PickingSettings("mip")
+    with pytest.raises(ValueError, match="score"):
+        PickingSettings("other")
+    assert PickingSettings("mip", 400).as_dict() == {
+        "score": "mip", "peaks_per_tilt": 400, "false_positives": None,
+    }  # fmt: skip
+    # Leopard-EM's threshold: sqrt(2) erfcinv(2 fp / n)
+    assert gaussian_threshold(864 * 896 * 54834, 1.0) == pytest.approx(6.58, abs=0.01)
+    rng = np.random.default_rng(0)
+    mip = rng.normal(3.0, 2.0, (200, 200))
+    normalised = robust_normalise(mip)
+    assert np.median(normalised) == pytest.approx(0.0, abs=1e-9)
+    assert normalised.std() == pytest.approx(1.0, abs=0.05)
+    np.testing.assert_array_equal(score_map("zscore", mip=mip, scaled_mip=mip * 2), mip * 2)
+
+
+def test_extract_peaks_from_results(tmp_path, monkeypatch):
+    from parapick.matching import leopard
+    from parapick.matching.peaks import PickingSettings
+    from parapick.workflows.match_template import extract_peaks
+
+    tilt = plan_matching(TomogramSet.of([_relion_tilt_series()]), particle_diameter=250.0)[0]
+    shape = (40, 50)
+    tensors = {name: np.zeros(shape) for name in leopard.RESULT_TENSORS}
+    tensors["mip"][10, 20], tensors["mip"][30, 40] = 50.0, 40.0
+    tensors["mip"] += np.random.default_rng(0).normal(0, 1, shape)
+    tensors["scaled_mip"][30, 40] = 9.0  # the z-score ranks the other peak first
+    tensors["orientation_psi"][10, 20] = 33.0
+    monkeypatch.setattr(leopard, "read_results", lambda path: (tensors, 1000))
+    peaks = extract_peaks(tmp_path, tilt, PickingSettings("mip", 2), half_box=16)
+    assert list(peaks["pos_x_img"]) == [36, 56] and list(peaks["pos_y_img"]) == [26, 46]
+    assert peaks["orientation_psi"].iloc[0] == 33.0
+    assert peaks["score"].iloc[0] > peaks["score"].iloc[1] > 10
+    z = extract_peaks(tmp_path, tilt, PickingSettings("zscore", 1), half_box=16)
+    assert (z["pos_x_img"].iloc[0], z["pos_y_img"].iloc[0]) == (56, 46)
